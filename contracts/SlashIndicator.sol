@@ -154,8 +154,11 @@ contract SlashIndicator is ISlashIndicator,System,IParamSubscriber{
       verifyBLSSignature(evidence.voteB, evidence.voteAddr), "verify signature failed");
 
     (address[] memory vals, bytes[] memory voteAddrs) = IValidatorSet(VALIDATOR_CONTRACT_ADDR).getValidatorsAndVoteAddresses();
+    if (voteAddrs.length <= 1) {
+      return;
+    }
     for (uint256 i; i < voteAddrs.length; ++i) {
-      if (BytesLib.equal(voteAddrs[i],  evidence.voteAddr)) {
+      if (BytesLib.equal(voteAddrs[i], evidence.voteAddr)) {
         IValidatorSet(VALIDATOR_CONTRACT_ADDR).felony(vals[i], felonyRound, felonyDeposit);
         ISystemReward(SYSTEM_REWARD_ADDR).claimRewards(payable(msg.sender), rewardForReportFinalityViolation);
         break;
@@ -366,7 +369,6 @@ contract SlashIndicator is ISlashIndicator,System,IParamSubscriber{
   function bytes32ToBytes(uint _offst, bytes32 _input, bytes memory _output) internal pure {
     assembly {
         mstore(add(_output, _offst), _input)
-        mstore(add(add(_output, _offst),32), add(_input,32))
     }
   }
 }

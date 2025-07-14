@@ -482,6 +482,9 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
       candidateSet[index-1] = candidateSet[candidateSet.length - 1];
       operateMap[candidateSet[index-1].operateAddr] = index;
       consensusMap[candidateSet[index-1].consensusAddr] = index;
+      if (candidateSet[index-1].agent != address(0)) {
+        agentMap[candidateSet[index-1].agent] = index; 
+      }
     }
     candidateSet.pop();
   }

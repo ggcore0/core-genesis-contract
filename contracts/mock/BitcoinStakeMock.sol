@@ -126,44 +126,6 @@ contract BitcoinStakeMock is BitcoinStake {
         return _collectReward(txid, settleRound);
     }
 
-
-    function moveDataMock(bytes32[] calldata txids) external {
-        uint256 txLength = txids.length;
-        bytes32 txid;
-        for (uint256 i = 0; i < txLength; i++) {
-            txid = txids[i];
-            (bool success, bytes memory data) = PLEDGE_AGENT_ADDR.call(abi.encodeWithSignature("moveBtcData(bytes32)", txid));
-            require(success, "call PLEDGE_AGENT_ADDR.moveBtcData() failed.");
-            (address candidate, address delegator, uint256 amount, uint256 round, uint256 lockTime) = abi.decode(data, (address, address, uint256, uint256, uint256));
-            {
-                uint256 endRound = uint256(lockTime) / SatoshiPlusHelper.ROUND_INTERVAL;
-                if (endRound <= roundTag) {
-                    continue;
-                }
-            }
-            BtcTx storage bt = btcTxMap[txid];
-            if (bt.amount != 0) {
-                continue;
-            }
-
-            // Set receiptMap
-            DepositReceipt storage dr = receiptMap[txids[i]];
-            dr.candidate = candidate;
-            dr.delegator = delegator;
-            dr.round = round;
-            bt.amount = uint64(amount);
-            bt.lockTime = uint32(lockTime);
-
-            // Set delegatorMap
-            Delegator storage d = delegatorMap[delegator];
-            d.txids.push(txid);
-
-            _addExpire(dr, uint32(lockTime), uint64(amount));
-
-            emit migrated(txid);
-        }
-    }
-
     function mockDelegateBtc(bytes32 txid, uint64 btcValue, address candidate, address delegator, uint32 lockTime, uint64 blockTimestamp, uint32 outputIndex) external nonReentrant {
         BtcTx storage bt = btcTxMap[txid];
         require(bt.amount == 0, "btc tx is already delegated.");

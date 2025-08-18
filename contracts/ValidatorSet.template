@@ -418,6 +418,21 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
     return 0;
   }
 
+  /// Get the list of validators that are still in the validator set
+  /// @return (List of validator consensus addresses, List of voting addresses)
+  function getLivingValidators() external view override returns (address[] memory, bytes[] memory) {
+    uint256 len = currentValidatorSet.length;
+    address[] memory consensusAddrs = new address[](len);
+    bytes[] memory voteAddrs = new bytes[](len);
+
+    for (uint256 i = 0; i < len; i++) {
+      consensusAddrs[i] = currentValidatorSet[i].consensusAddress;
+      voteAddrs[i] = currentValidatorSet[i].voteAddr;
+    }
+
+    return (consensusAddrs, voteAddrs);
+  }
+
   /*********************** For slash **************************/
   /// Slash the validator for misdemeanor behaviors
   /// @param validator The validator to slash

@@ -74,7 +74,7 @@ contract Channel is IChannel, System, IParamSubscriber {
   /// @param reward the reward for total staked tx
   /// @return remainingReward the remain reward after pay commission.
   function payCommissionById(uint32 partnerId, uint256 reward) external override onlyCaller(BTC_STAKE_ADDR) returns (uint256 remainingReward) {
-    if (partnerId == 0 && partnerId > partnerIdGenerator) {
+    if (partners[partnerId].status == 0) {
       return reward;
     }
     Partner storage p = partners[partnerId];
@@ -97,6 +97,9 @@ contract Channel is IChannel, System, IParamSubscriber {
     remainingReward = reward;
     for (uint256 i = ids.length; i != 0; i--) {
       Partner storage p = partners[ids[i-1]];
+      if (p.status == 0) {
+        continue;
+      }
       uint256 commission = p.delegatorAmounts[delegator] * p.coreCommissionRate / SatoshiPlusHelper.DENOMINATOR * reward / amount;
       p.commission += commission;
       remainingReward -= commission;
@@ -110,7 +113,7 @@ contract Channel is IChannel, System, IParamSubscriber {
   /// @return feeAddress the fee address
   function resetCommission(address partner) external override onlyCaller(STAKE_HUB_ADDR) returns (uint256 commission, address feeAddress) {
     uint32 id = partnerIdMap[partner];
-    if (id != 0) {
+    if (id != 0 && partners[id].status != 0) {
       feeAddress = partners[id].feeAddress;
       commission = partners[id].commission;
       if (commission != 0) {

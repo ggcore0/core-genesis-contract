@@ -122,6 +122,26 @@ contract Channel is IChannel, System, IParamSubscriber {
     }
   }
 
+  /// This method is a callback when delegate undelegate coin.
+  ///
+  /// @param delegator the delegator address
+  /// @param amount the undelegate amount
+  function onUndelegateCoin(address delegator, uint256 amount) external override onlyCaller(CORE_AGENT_ADDR) {
+    uint32[] storage ids = delegators[delegator];
+    for (uint256 i = ids.length; amount != 0 && i != 0; i--) {
+      uint32 tempId = ids[i-1];
+      uint256 stakedAmount = partners[tempId].delegatorAmounts[delegator];
+      if (stakedAmount > amount) {
+        partners[tempId].delegatorAmounts[delegator] = stakedAmount - amount;
+        break;
+      } else {
+        amount -= stakedAmount;
+        delete partners[tempId].delegatorAmounts[delegator];
+        ids.pop();
+      }
+    }
+  }
+
   /*********************** External methods ***************************/
   /// Register as a channel partner
   function register(address feeAddress, uint16 coreCommissionRate, uint16 btcCommissionRate) external payable {
@@ -219,37 +239,6 @@ contract Channel is IChannel, System, IParamSubscriber {
       delegators[delegator].push(id);
     }
     p.delegatorAmounts[delegator] = existAmount + amount;
-  }
-
-  /// unstake CORE from a partner channel
-  /// @param candidate The operator address of validator
-  /// @param amount The amount of CORE to undelegate
-  /// @param id The partner id
-  function undelegateCoin(address candidate, uint256 amount, uint32 id) external {
-    if (id == 0 || id > partnerIdGenerator) {
-      return;
-    }
-    uint256 stakedAmount = partners[id].delegatorAmounts[msg.sender];
-    if (stakedAmount < amount) {
-      revert InsufficientAmount(amount, stakedAmount);
-    }
-    ICoreAgent(CORE_AGENT_ADDR).proxyUnDelegate(candidate, msg.sender, amount, id);
-    if (stakedAmount > amount) {
-      partners[id].delegatorAmounts[msg.sender] = stakedAmount - amount;
-    } else {
-      delete partners[id].delegatorAmounts[msg.sender];
-      // remove id from Delegator
-      uint32[] storage ids = delegators[msg.sender];
-      for (uint256 i = ids.length; i != 0; i--) {
-        if (ids[i-1] == id) {
-          if (i != ids.length) {
-            ids[i-1] = ids[ids.length-1];
-          }
-          ids.pop();
-        }
-      }
-    }
-    Address.sendValue(payable(msg.sender), amount);
   }
 
   /*********************** Governance ********************************/

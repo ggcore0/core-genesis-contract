@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache2.0
 pragma solidity 0.8.4;
 
 import "../SlashIndicator.sol";
@@ -31,9 +32,6 @@ contract SlashIndicatorMock is SlashIndicator {
         }
     }
 
-    function getSlashValidators() external view returns (address[] memory) {
-        return validators;
-    }
 
     function getIndicators() public view returns (address[] memory, uint256[] memory) {
         address[] memory v = new address[](validators.length);
@@ -49,4 +47,51 @@ contract SlashIndicatorMock is SlashIndicator {
         return ecrecovery(hash, sig);
     }
 
+    function setMisdemeanorThreshold(uint256 _misdemeanorThreshold) external {
+        misdemeanorThreshold = _misdemeanorThreshold;
+    }
+    function setFelonyThreshold(uint256 _felonyThreshold) external {
+        felonyThreshold = _felonyThreshold;
+    }
+
+    // for uint test
+    function mockSubmitFinalityViolationEvidence(FinalityEvidence memory evidence) external onlyInit {
+        if (rewardForReportFinalityViolation == 0) {
+            rewardForReportFinalityViolation = INIT_REWARD_FOR_REPORT_FINALITY_VIOLATION;
+        }
+
+        // Basic check
+        require(evidence.voteA.srcNum + 86400 > block.number &&
+        evidence.voteB.srcNum + 86400 > block.number, "too old block involved");
+        require(!(evidence.voteA.srcHash == evidence.voteB.srcHash &&
+            evidence.voteA.tarHash == evidence.voteB.tarHash), "two identical votes");
+        require(evidence.voteA.srcNum < evidence.voteA.tarNum &&
+        evidence.voteB.srcNum < evidence.voteB.tarNum, "srcNum bigger than tarNum");
+
+        // Vote rules check
+        require((evidence.voteA.srcNum < evidence.voteB.srcNum && evidence.voteB.tarNum < evidence.voteA.tarNum) ||
+        (evidence.voteB.srcNum < evidence.voteA.srcNum && evidence.voteA.tarNum < evidence.voteB.tarNum) ||
+        evidence.voteA.tarNum == evidence.voteB.tarNum, "no violation of vote rules");
+
+        // BLS verification 
+        // Default BLS verification passed.
+        // require(verifyBLSSignature(evidence.voteA, evidence.voteAddr) &&
+        // verifyBLSSignature(evidence.voteB, evidence.voteAddr), "verify signature failed");
+
+        (address[] memory vals, bytes[] memory voteAddrs) = IValidatorSet(VALIDATOR_CONTRACT_ADDR).getLivingValidators();
+        if (voteAddrs.length <= 1) {
+            return;
+        }
+        for (uint256 i; i < voteAddrs.length; ++i) {
+            if (BytesLib.equal(voteAddrs[i], evidence.voteAddr)) {
+                indicators[vals[i]].count = 0;
+                ISystemReward(SYSTEM_REWARD_ADDR).claimRewards(payable(msg.sender), rewardForReportFinalityViolation);
+                IValidatorSet(VALIDATOR_CONTRACT_ADDR).felony(vals[i], felonyRound, felonyDeposit);
+                break;
+            }
+        }
+    }
+    function mockSlashWithBlockCount(address validator, uint256 blockCount) external {
+        slashWithBlockCount(validator, blockCount);
+    }
 }

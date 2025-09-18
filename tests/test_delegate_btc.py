@@ -77,7 +77,7 @@ def test_claim_rewards_from_multiple_validators(btc_stake):
     assert tracker0.delta() == sum_reward - FEE * 12
 
 
-def test_transfer_btc_between_different_validators(btc_stake, core_agent, candidate_hub, set_candidate, btc_lst_stake):
+def test_transfer_btc_between_different_validators(btc_stake, core_agent, candidate_hub, set_candidate):
     operators, consensuses = set_candidate
     end_round, _ = set_last_round_tag(STAKE_ROUND)
     tx_id = delegate_btc_success(operators[0], accounts[0], BTC_VALUE, LOCK_SCRIPT, LOCK_SCRIPT)
@@ -127,7 +127,7 @@ def test_claim_btc_staking_rewards_success(btc_stake, set_candidate):
     tx = stake_hub_claim_reward(accounts[0])
     expect_event(tx, "claimedReward", {
         "delegator": accounts[0],
-        "amount": TOTAL_REWARD - FEE
+        "amounts": [0, 0, TOTAL_REWARD - FEE]
     })
     assert tracker.delta() == TOTAL_REWARD - FEE
 
@@ -433,7 +433,9 @@ def test_multiple_btc_receipts_to_single_address(btc_stake, set_candidate):
     turn_round(consensuses)
     tx = stake_hub_claim_reward(accounts[0])
     assert 'claimedReward' not in tx.events
-    turn_round(consensuses, round_count=2)
+    turn_round(consensuses)
+    delegate_btc_success(operators[2], accounts[0], BTC_VALUE, LOCK_SCRIPT, LOCK_TIME, accounts[2])
+    turn_round(consensuses)
     tracker0 = get_tracker(accounts[0])
     stake_hub_claim_reward(accounts[0])
     _, _, account_rewards, round_reward = parse_delegation([{
@@ -652,12 +654,19 @@ def test_operations_with_coin_power_and_btc_staking(btc_stake, set_candidate, bt
     tx_id = delegate_btc_success(operators[0], accounts[0], BTC_VALUE, LOCK_SCRIPT, LOCK_TIME, accounts[2])
     CORE_AGENT.delegateCoin(operators[0], {"value": delegate_amount, "from": accounts[1]})
     turn_round()
+    vote_percent = 10
+    weights = [10, 20, 30]
     undelegate_amount = 7000
     transfer_amount = delegate_amount // 2
     CORE_AGENT.transferCoin(operators[0], operators[2], transfer_amount, {'from': accounts[1]})
     CORE_AGENT.undelegateCoin(operators[0], undelegate_amount, {'from': accounts[1]})
     btc_stake.transfer(tx_id, operators[1])
-    turn_round(consensuses)
+    tx = turn_round(consensuses, weights=weights)
+    total_vote_fee0 = BLOCK_REWARD * vote_percent // 100 * 2 + BLOCK_REWARD // 2 * vote_percent // 100
+    for i in range(len(operators)):
+        expect_event(tx, 'voteRewardTransfer', {
+            'amount': total_vote_fee0 * weights[i] // sum(weights)
+        }, idx=i)
     tracker0 = get_tracker(accounts[0])
     tracker1 = get_tracker(accounts[1])
     tracker2 = get_tracker(accounts[2])
@@ -673,7 +682,12 @@ def test_operations_with_coin_power_and_btc_staking(btc_stake, set_candidate, bt
     assert tracker0.delta() == 0
     assert tracker1.delta() == account_rewards[accounts[1]]
     assert tracker2.delta() == account_rewards[accounts[2]]
-    turn_round(consensuses)
+    tx = turn_round(consensuses, weights=weights)
+    total_vote_fee = TOTAL_REWARD * vote_percent // 100 * 3
+    for i in range(len(operators)):
+        expect_event(tx, 'voteRewardTransfer', {
+            'amount': total_vote_fee * weights[i] // sum(weights)
+        }, idx=i)
     _, _, account_rewards, _ = parse_delegation([{
         "address": operators[0],
         "active": True,
@@ -698,6 +712,7 @@ def test_operations_with_coin_power_and_btc_staking(btc_stake, set_candidate, bt
     assert tracker0.delta() == account_rewards[accounts[0]] - FEE
     assert tracker1.delta() == account_rewards[accounts[1]]
     assert tracker2.delta() == account_rewards[accounts[2]]
+    turn_round(consensuses)
 
 
 def test_btc_transfer_does_not_claim_historical_rewards(btc_stake, set_candidate):
@@ -925,6 +940,8 @@ def test_btc_transaction_with_witness_as_output_address(btc_stake, set_candidate
         "000000000017a9144c35996fbf4026de7c8fe79c4320c248a10e4bf28702483045022100e32dd040238c19321407b7dfbba957e5988755779030dbcc52e6ae22a2a2088402202eeb497ae61aee9eba97cc4f5d34ba814c3ad1c0bf3286edaba05f044ab4bba401210386f359aa5a42d821370bf07a5ad86c1ff2d892662699103e462ae04d082d83ac00000000")
     lock_script = '041e28fd65b17576a914a808bc3c1ba547b0ba2df4abf1396f35c4d23b4f88ac'
     scrip_pubkey = 'a9144c35996fbf4026de7c8fe79c4320c248a10e4bf287'
+    with brownie.reverts("BitcoinHelper: invalid tx"):   
+        tx = btc_stake.delegate(btc_tx, 200, [], 22, lock_script)
     btc_tx = remove_witness_data_from_raw_tx(btc_tx, scrip_pubkey)
     tx = btc_stake.delegate(btc_tx, 200, [], 22, lock_script)
     assert 'delegated' in tx.events

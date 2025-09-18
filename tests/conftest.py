@@ -3,10 +3,22 @@ from eth_abi import encode
 from brownie import *
 from web3 import Web3
 
+from tests.common import register_candidate
+
 
 @pytest.fixture(scope="session", autouse=True)
 def is_development() -> bool:
     return network.show_active() == "development"
+
+
+@pytest.fixture()
+def set_candidate():
+    operators = []
+    consensuses = []
+    for operator in accounts[5:8]:
+        operators.append(operator)
+        consensuses.append(register_candidate(operator=operator))
+    return operators, consensuses
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -141,20 +153,6 @@ def btc_agent(accounts):
     c.init()
     return c
 
-
-@pytest.fixture(scope="module")
-def btc_lst_stake(accounts):
-    c = accounts[0].deploy(BitcoinLSTStakeMock)
-    return c
-
-
-@pytest.fixture(scope="module")
-def lst_token(accounts):
-    c = accounts[0].deploy(BitcoinLSTToken)
-    c.init()
-    return c
-
-
 @pytest.fixture(scope="module")
 def hash_power_agent(accounts):
     c = accounts[0].deploy(HashPowerAgentMock)
@@ -168,6 +166,11 @@ def configuration(accounts):
     c.init()
     return c
 
+@pytest.fixture(scope="module")
+def channel(accounts):
+    c = accounts[0].deploy(Channel)
+    c.init()
+    return c
 
 # test contract
 @pytest.fixture(scope="module")
@@ -191,16 +194,14 @@ def set_system_contract_address(
         stake_hub,
         btc_stake,
         btc_agent,
-        btc_lst_stake,
         core_agent,
         hash_power_agent,
-        lst_token,
-        configuration
+        configuration,
+        channel
 ):
     contracts = [
         validator_set, slash_indicator, system_reward, btc_light_client, relay_hub, candidate_hub, gov_hub,
-        pledge_agent, burn, foundation, stake_hub, btc_stake, btc_agent, btc_lst_stake, core_agent, hash_power_agent,
-        lst_token, configuration
+        pledge_agent, burn, foundation, stake_hub, btc_stake, btc_agent, core_agent, hash_power_agent, configuration, channel
     ]
     args = encode(['address'] * len(contracts), [c.address for c in contracts])
 
@@ -212,12 +213,10 @@ def set_system_contract_address(
     # init after set system contract
     system_reward.init()
     btc_stake.init()
-    btc_lst_stake.init()
     stake_hub.init()
 
     if is_development:
         btc_stake.developmentInit()
-        btc_lst_stake.developmentInit()
         stake_hub.developmentInit()
 
 

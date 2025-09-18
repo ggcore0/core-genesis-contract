@@ -101,6 +101,24 @@ def test_update_param_is_burn(system_reward, value, success):
                     system_reward.updateParam("isBurn", value)
 
 
+def test_update_param_add_operator(system_reward):
+    operator = random_address()
+    system_reward.updateParam("addOperator", operator)
+    assert system_reward.operators(operator)
+
+
+def test_add_operator_invalid_address_length(system_reward):
+    operator = random_address()
+    with brownie.reverts(f"MismatchParamLength: addOperator"):
+        system_reward.updateParam("addOperator", operator + 'A')
+        
+
+def test_add_operator_zero_address(system_reward):
+    operator = ZERO_ADDRESS
+    system_reward.updateParam("addOperator", operator)
+    assert system_reward.operators(operator)
+
+
 def test_receive_rewards_with_value_0(system_reward):
     tx = system_reward.receiveRewards({'value': 0})
     assert len(tx.events.keys()) == 0
@@ -413,12 +431,12 @@ def test_whitelist_forbidden_funds_after_round_switch(stake_hub, burn, validator
     turn_round(consensuses)
 
 
-def test_revert_when_whitelist_address_receives_funds(btc_lst_stake, system_reward, stake_hub, lst_token):
+def test_revert_when_whitelist_address_receives_funds(system_reward, stake_hub):
     incentive_balance_cap = system_reward.incentiveBalanceCap()
     accounts[0].transfer(system_reward.address, incentive_balance_cap)
     turn_round()
     burn_reward = 10000000
-    btc_lst_stake = delegateBtcLstProxy.deploy(btc_lst_stake.address, stake_hub.address, lst_token,
+    btc_lst_stake = delegateBtcLstProxy.deploy(accounts[1], stake_hub.address, accounts[2],
                                                {'from': accounts[0]})
     __add_whitelist(btc_lst_stake, Utils.DENOMINATOR // 4)
     __add_whitelist(accounts[2], Utils.DENOMINATOR // 4)

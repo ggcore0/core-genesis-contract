@@ -92,7 +92,7 @@ def set_channel(channel, required_margin):
 def test_init(channel):
     assert channel.alreadyInit() is True
     assert channel.requiredMargin() == channel.INIT_REQUIRED_MARGIN()
-    assert channel.dues() == 0
+    assert channel.dues() == channel.INIT_DUES()
     assert channel.commissionLimit() == channel.DEFAULT_COMMISSION_LIMIT()
 
 
@@ -313,7 +313,7 @@ def test_reset_commission_unauthorized_caller(channel, set_channel_partner, stak
 
 
 def test_governance_update_required_margin(channel, gov_hub):
-    new_margin = Wei("15 ether")
+    new_margin = channel.dues() + Wei("15 ether")
 
     execute_proposal(
         channel.address, 0,

@@ -96,8 +96,8 @@ contract BitcoinStakeMock is BitcoinStake {
     function getCalculateRoundMock(bytes32 txid, uint256 settleRound) external view returns (uint calculateRound, bool expired) {
         return _getCalculateRound(txid, settleRound);
     }
-    function applyDualStakingMock(uint256 coreAmount, uint256 bctAmount) external view returns (uint256, uint256) {
-        return _applyDualStaking(coreAmount, bctAmount);
+    function applyDualStakingMock(uint256 coreAmount, uint256 btcAmount) external view returns (uint256, uint256) {
+        return _applyDualStaking(coreAmount, btcAmount);
     }
 
 

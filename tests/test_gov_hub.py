@@ -594,21 +594,6 @@ def test_execute_early_then_propose(gov_hub, pledge_agent, is_pre_exec):
         chain.mine(gov_hub.votingPeriod() * 2)
     gov_hub.execute(1)
     assert pledge_agent.btcFactor() == 0
-    pledge_agent.setBtcFactor(20)
-    gov_hub.propose(
-        [pledge_agent.address],
-        [0],
-        ["updateParam(string,bytes)"],
-        [encode(['string', 'bytes'], ['clearDeprecatedMembers', padding_value])],
-        ['pledgeAgent clearDeprecatedMembers']
-    )
-    chain.mine(1)
-    for member in gov_hub.getMembers()[:3]:
-        gov_hub.castVote(2, True, {'from': member})
-    if is_pre_exec is False:
-        chain.mine(gov_hub.votingPeriod() * 2)
-    gov_hub.execute(2)
-    assert pledge_agent.btcFactor() == 0
 
 
 @pytest.mark.parametrize("is_pre_exec", [True, False])
@@ -796,6 +781,76 @@ def test_get_executed_proposal_state(gov_hub):
     with brownie.reverts():
         gov_hub.execute(1)
     assert gov_hub.getState(1) == 4
+
+
+def test_only_gov_can_execute(gov_hub):
+    value = padding_left(Web3.to_hex(100), 64)
+    with brownie.reverts(f"the msg sender must be governance contract"):
+        gov_hub.updateParam("proposalMaxOperations", value)
+
+
+@pytest.mark.parametrize("new_proposalMaxOperations", [1, 2, 5000, 6000, 1000000, 10000000])
+def test_update_proposal_max_operations_success(gov_hub, new_proposalMaxOperations):
+    value = padding_left(Web3.to_hex(new_proposalMaxOperations), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    gov_hub.updateParam("proposalMaxOperations", value)
+    assert gov_hub.proposalMaxOperations() == value
+
+
+def test_proposal_max_operations_zero(gov_hub):
+    value = padding_left(Web3.to_hex(0), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    uint256_max = 2 ** 256 - 1
+    with brownie.reverts(f"OutOfBounds: proposalMaxOperations, 0, 1, {uint256_max}"):
+        gov_hub.updateParam("proposalMaxOperations", value)
+
+
+@pytest.mark.parametrize("votingPeriod", [28800, 28801, 28802, 100000, 800000000])
+def test_update_voting_period_success(gov_hub, votingPeriod):
+    value = padding_left(Web3.to_hex(votingPeriod), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    gov_hub.updateParam("votingPeriod", value)
+    assert gov_hub.votingPeriod() == value
+
+
+@pytest.mark.parametrize("votingPeriod", [0, 1, 1000, 28800 - 2, 28800 - 1])
+def test_voting_period_out_of_range(gov_hub, votingPeriod):
+    value = padding_left(Web3.to_hex(votingPeriod), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    uint256_max = 2 ** 256 - 1
+    with brownie.reverts(f"OutOfBounds: votingPeriod, {votingPeriod}, 28800, {uint256_max}"):
+        gov_hub.updateParam("votingPeriod", value)
+
+
+@pytest.mark.parametrize("executingPeriod", [28800, 28801, 28802, 100000, 800000000])
+def test_update_executing_period_success(gov_hub, executingPeriod):
+    value = padding_left(Web3.to_hex(executingPeriod), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    gov_hub.updateParam("executingPeriod", value)
+    assert gov_hub.executingPeriod() == value
+
+
+@pytest.mark.parametrize("executingPeriod", [0, 1, 1000, 28800 - 2, 28800 - 1])
+def test_executing_period_out_of_range(gov_hub, executingPeriod):
+    value = padding_left(Web3.to_hex(executingPeriod), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    uint256_max = 2 ** 256 - 1
+    with brownie.reverts(f"OutOfBounds: executingPeriod, {executingPeriod}, 28800, {uint256_max}"):
+        gov_hub.updateParam("executingPeriod", value)
+
+
+def test_invalid_key(gov_hub):
+    value = padding_left(Web3.to_hex(100000), 64)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    with brownie.reverts(f"UnsupportedGovParam: key_error"):
+        gov_hub.updateParam("key_error", value)
+
+
+def test_value_length_error(gov_hub):
+    value = padding_left(Web3.to_hex(100000), 66)
+    update_system_contract_address(gov_hub, gov_hub=accounts[0])
+    with brownie.reverts(f"MismatchParamLength: executingPeriod"):
+        gov_hub.updateParam("executingPeriod", value)
 
 
 def __add_member(c, member_address):

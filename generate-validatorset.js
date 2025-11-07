@@ -1,7 +1,7 @@
 const program = require("commander");
 const fs = require("fs");
 const nunjucks = require("nunjucks");
-
+const init_cycle = require("./init_cycle")
 
 program.version("0.0.1");
 program.option(
@@ -35,6 +35,7 @@ if (initValidatorSetBytes == ""){
 }
 const data = {
   initValidatorSetBytes: initValidatorSetBytes,
+  initTurnLength: init_cycle.turnLength,
   mock: program.mock,
 };
 
@@ -42,3 +43,4 @@ const templateString = fs.readFileSync(program.template).toString();
 const resultString = nunjucks.renderString(templateString, data);
 fs.writeFileSync(program.output, resultString);
 console.log("ValidatorSet file updated.");
+

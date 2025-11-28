@@ -59,8 +59,9 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// Receive round rewards from StakeHub, which is triggered at the beginning of turn round.
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 /*round*/) external override onlyStakeHub {
-    IBitcoinStake(BTC_STAKE_ADDR).distributeReward(validators, rewardList);
+  /// @param stakeWeight the weight of stake asset
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 /*round*/, uint256 stakeWeight) external override onlyStakeHub returns (uint256) {
+    IBitcoinStake(BTC_STAKE_ADDR).distributeReward(validators, rewardList, stakeWeight);
   }
 
   /// Get staked BTC amount
@@ -90,8 +91,8 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// @param claim claim or store rewards
   /// @return reward Amount claimed
   /// @return floatReward floating reward amount
-  function claimReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external override onlyStakeHub returns (uint256 reward, int256 floatReward) {
-    return IBitcoinStake(BTC_STAKE_ADDR).claimReward(delegator, coreAmount, settleRound, claim);
+  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external override onlyStakeHub returns (uint256 reward, int256 floatReward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(delegator, coreAmount, settleRound, claim);
   }
 
   /*********************** External methods ********************************/
@@ -124,11 +125,23 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
     }
   }
 
+  /// Enable stake weight.
+  /// @param delegator the delegator address
+  function enableStakeWeight(address delegator) external override onlyStakeHub {
+    // TODO: implement
+  }
+
+  /// Disable stake weight.
+  /// @param delegator the delegator address
+  function disableStakeWeight(address delegator) external override onlyStakeHub {
+    // TODO: implement
+  }
+
   /*********************** Governance ********************************/
   /// Update parameters through governance vote
   /// @param key The name of the parameter
   /// @param value the new value set to the parameter
-  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyGov {
+  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyCaller(GOV_HUB_ADDR) {
     if (Memory.compareStrings(key, "grades")) {
       uint256 lastLength = grades.length;
 

@@ -37,7 +37,8 @@ interface IBitcoinStake {
   /// Receive round rewards from BitcoinAgent. It is triggered at the beginning of turn round
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList) external;
+  /// @param stakeWeight the weight of stake asset
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external;
 
   /// Claim reward for delegator
   /// @param delegator the delegator address
@@ -46,5 +47,5 @@ interface IBitcoinStake {
   /// @param claim claim or store rewards
   /// @return reward Amount claimed
   /// @return floatReward floating reward amount
-  function claimReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external returns (uint256 reward, int256 floatReward);
+  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external returns (uint256 reward, int256 floatReward);
 }

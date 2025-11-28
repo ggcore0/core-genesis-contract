@@ -26,7 +26,9 @@ interface IAgent {
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
   /// @param round The round tag
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round) external;
+  /// @param stakeWeight the weight of stake asset
+  /// @return destoryAmount the amount of destory reward
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round, uint256 stakeWeight) external returns (uint256 destoryAmount);
 
   /// Claim reward for delegator
   /// @param delegator the delegator address
@@ -35,5 +37,13 @@ interface IAgent {
   /// @param claim claim or store rewards
   /// @return reward Amount claimed
   /// @return floatReward floating reward amount
-  function claimReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external returns (uint256 reward, int256 floatReward);
+  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external returns (uint256 reward, int256 floatReward);
+
+  /// Enable stake weight
+  /// @param delegator the delegator address
+  function enableStakeWeight(address delegator) external;
+
+  /// Disable stake weight
+  /// @param delegator the delegator address
+  function disableStakeWeight(address delegator) external;
 }

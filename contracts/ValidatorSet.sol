@@ -323,7 +323,7 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
     _enterMaintenance(currentValidatorSet[index-1].consensusAddress);
   }
 
-  function enterMaintenance(address val) external override onlySlash {
+  function enterMaintenance(address val) external override onlyCaller(SLASH_CONTRACT_ADDR) {
     uint256 index = currentValidatorSetMap[val];
     if (index == 0) {
       return;
@@ -482,7 +482,7 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
   /*********************** For slash **************************/
   /// Slash the validator for misdemeanor behaviors
   /// @param validator The validator to slash
-  function misdemeanor(address validator) external override onlySlash {
+  function misdemeanor(address validator) external override onlyCaller(SLASH_CONTRACT_ADDR) {
     uint256 index = currentValidatorSetMap[validator];
     if (index == 0) {
       return;
@@ -514,7 +514,7 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
   /// @param validator The validator to slash
   /// @param felonyRound The number of rounds to jail
   /// @param felonyDeposit The amount of deposits to slash
-  function felony(address validator, uint256 felonyRound, uint256 felonyDeposit) external override onlySlash {
+  function felony(address validator, uint256 felonyRound, uint256 felonyDeposit) external override onlyCaller(SLASH_CONTRACT_ADDR) {
     uint256 index = currentValidatorSetMap[validator];
     if (index == 0) {
       return;
@@ -553,7 +553,7 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
   /// Update parameters through governance vote
   /// @param key The name of the parameter
   /// @param value the new value set to the parameter
-  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyGov {
+  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyCaller(GOV_HUB_ADDR) {
     if (value.length != 32) {
       revert MismatchParamLength(key);
     }

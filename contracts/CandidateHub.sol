@@ -156,7 +156,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   /// @param operateAddress The operator address of the validator
   /// @param round The number of rounds to jail
   /// @param fine The amount of deposits to slash
-  function jailValidator(address operateAddress, uint256 round, uint256 fine) external override onlyValidator {
+  function jailValidator(address operateAddress, uint256 round, uint256 fine) external override onlyCaller(VALIDATOR_CONTRACT_ADDR) {
     uint256 index = operateMap[operateAddress];
     if (index == 0) return;
 
@@ -582,7 +582,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   /// Update parameters through governance vote
   /// @param key The name of the parameter
   /// @param value the new value set to the parameter
-  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyGov {
+  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyCaller(GOV_HUB_ADDR) {
     if (value.length != 32) {
       revert MismatchParamLength(key);
     }

@@ -16,7 +16,6 @@ import "./lib/SafeCast.sol";
 /// non-custodial BTC staking correspondingly. 
 contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   using BytesLib for *;
-  using SafeCast for *;
   using RLPDecode for bytes;
   using RLPDecode for RLPDecode.Iterator;
   using RLPDecode for RLPDecode.RLPItem;
@@ -40,6 +39,9 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   // Deprecated in V-1.0.20
   uint256 public lstGradePercentage;
 
+  // Time grading applied to BTC stakers
+  LockLengthGrade[] public lockLengthGrades;
+
   struct StakeAmount {
     // Deprecated, never used.
     uint256 lstStakeAmount;
@@ -50,6 +52,8 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   event claimedBtcReward(address indexed delegator, uint256 amount, uint256 unclaimedAmount, int256 floatReward, uint256 accStakedAmount, uint256 dualStakingRate);
   event storedBtcReward(address indexed delegator, uint256 amount, uint256 unclaimedAmount, int256 floatReward, uint256 accStakedAmount, uint256 dualStakingRate);
 
+  error NotImplemented();
+
   function init() external onlyNotInit {
     assetWeight = DEFAULT_CORE_BTC_CONVERSION;
     alreadyInit = true;
@@ -59,8 +63,9 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// Receive round rewards from StakeHub, which is triggered at the beginning of turn round.
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 /*round*/) external override onlyStakeHub {
-    IBitcoinStake(BTC_STAKE_ADDR).distributeReward(validators, rewardList);
+  /// @param stakeWeight the weight of stake asset
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 /*round*/, uint256 stakeWeight) external override onlyStakeHub returns (uint256) {
+    return IBitcoinStake(BTC_STAKE_ADDR).distributeReward(validators, rewardList, stakeWeight);
   }
 
   /// Get staked BTC amount
@@ -83,15 +88,21 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
     IBitcoinStake(BTC_STAKE_ADDR).setNewRound(validators, round);
   }
 
-  /// Claim reward for delegator
+  /// Liquidation reward for delegator
   /// @param delegator the delegator address
   /// @param coreAmount the staked amount of staked CORE.
   /// @param settleRound the settlement round
-  /// @param claim claim or store rewards
-  /// @return reward Amount claimed
   /// @return floatReward floating reward amount
-  function claimReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external override onlyStakeHub returns (uint256 reward, int256 floatReward) {
-    return IBitcoinStake(BTC_STAKE_ADDR).claimReward(delegator, coreAmount, settleRound, claim);
+  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external override onlyStakeHub returns (int256 floatReward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(delegator, coreAmount, settleRound);
+  }
+
+  /// Claim reward for delegator
+  /// @param delegator the delegator address
+  /// @param btcIds the given txid list to claim. If the list is empty, it means all.
+  /// @return reward Amount claimed
+  function claimReward(address delegator, bytes32[] memory btcIds) external override onlyStakeHub returns (uint256 reward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).claimReward(delegator, btcIds);
   }
 
   /*********************** External methods ********************************/
@@ -105,7 +116,7 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// @param rate the stake rate
   /// @return percentage the target percentage
   /// @return stakeRate the target stake rate
-  function getGrade(uint256 rate) external view override returns (uint256 percentage, uint256 stakeRate) {
+  function getGrade(uint256 rate) public view override returns (uint256 percentage, uint256 stakeRate) {
     percentage = SatoshiPlusHelper.DENOMINATOR;
     stakeRate = 0;
     uint256 gradeLength = grades.length;
@@ -124,11 +135,51 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
     }
   }
 
+  function calculateFloatReward(uint32 lockTime, uint64 blockTimestamp, uint64 amount, uint256 initReward, uint256 coreAmount) override external view returns (uint256 reward, int256 floatReward, uint256 remainingCoreAmount, uint256 ldPercentage, uint256 dsPercentage) {
+    reward = initReward;
+    if (reward != 0) {
+      uint256 pReward;
+      // apply time grading to BTC rewards
+      if (lockLengthGrades.length != 0) {
+        uint64 lockDuration = lockTime - blockTimestamp;
+        ldPercentage = lockLengthGrades[0].percentage;
+        for (uint256 j = lockLengthGrades.length - 1; j != 0; j--) {
+          if (lockDuration >= lockLengthGrades[j].lockDuration) {
+            ldPercentage = lockLengthGrades[j].percentage;
+            break;
+          }
+        }
+        pReward = reward * ldPercentage / SatoshiPlusHelper.DENOMINATOR;
+        floatReward = pReward.toInt256() - reward.toInt256();
+        reward = pReward;
+      }
+      (remainingCoreAmount, dsPercentage) = _applyDualStaking(coreAmount, amount);
+      pReward = reward * dsPercentage / SatoshiPlusHelper.DENOMINATOR;
+      floatReward += pReward.toInt256() - reward.toInt256();
+      reward = pReward;
+    } else {
+      remainingCoreAmount = coreAmount;
+    }
+  }
+
+  function _applyDualStaking(uint256 coreAmount, uint256 btcAmount) internal view returns (uint256, uint256) {
+    uint256 dsPercentage;
+    uint256 stakeRate = coreAmount / btcAmount;
+    (dsPercentage, stakeRate) = getGrade(stakeRate);
+    uint256 dualAmount = stakeRate * btcAmount;
+    if (coreAmount > dualAmount) {
+      coreAmount -= dualAmount;
+    } else {
+      coreAmount = 0;
+    }
+    return (coreAmount, dsPercentage);
+  }
+
   /*********************** Governance ********************************/
   /// Update parameters through governance vote
   /// @param key The name of the parameter
   /// @param value the new value set to the parameter
-  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyGov {
+  function updateParam(string calldata key, bytes calldata value) external override onlyInit onlyCaller(GOV_HUB_ADDR) {
     if (Memory.compareStrings(key, "grades")) {
       uint256 lastLength = grades.length;
 
@@ -175,7 +226,44 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
         revert OutOfBounds(key, newGradeActive, 0, 1);
       }
       gradeActive = newGradeActive == 1;
-    } else {
+    } else if (Memory.compareStrings(key, "lockLengthGrades")) {
+      uint256 lastLength = lockLengthGrades.length;
+      RLPDecode.RLPItem[] memory items = value.toRLPItem().toList();
+      uint256 currentLength = items.length;
+
+      for (uint256 i = currentLength; i < lastLength; i++) {
+        lockLengthGrades.pop();
+      }
+      uint256 lockDuration;
+      uint256 percentage;
+      for (uint256 i = 0; i < currentLength; i++) {
+        RLPDecode.RLPItem[] memory itemArray = items[i].toList();
+        lockDuration = RLPDecode.toUint(itemArray[0]);
+        // limit lockDuration 4000 rounds.
+        if (lockDuration > 4000) {
+          revert OutOfBounds('lockDuration', percentage, 0, 4000);
+        }
+        percentage = RLPDecode.toUint(itemArray[1]);
+        if (percentage == 0 || percentage > SatoshiPlusHelper.DENOMINATOR) {
+          revert OutOfBounds('percentage', percentage, 1, SatoshiPlusHelper.DENOMINATOR);
+        }
+        lockDuration *= SatoshiPlusHelper.ROUND_INTERVAL;
+        if (i >= lastLength) {
+          lockLengthGrades.push(LockLengthGrade(uint64(lockDuration), uint32(percentage)));
+        } else {
+          lockLengthGrades[i] = LockLengthGrade(uint64(lockDuration), uint32(percentage));
+        }
+      }
+      // check lockDuration & percentage in order.
+      for (uint256 i = 1; i < currentLength; i++) {
+        require(lockLengthGrades[i-1].lockDuration < lockLengthGrades[i].lockDuration, "lockDuration disorder");
+        require(lockLengthGrades[i-1].percentage < lockLengthGrades[i].percentage, "percentage disorder");
+      }
+      if (currentLength != 0) {
+        require(lockLengthGrades[0].lockDuration == 0, "lowest lockDuration must be zero");
+      }
+    }
+    else {
         revert UnsupportedGovParam(key);
     }
 

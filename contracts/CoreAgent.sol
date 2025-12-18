@@ -65,6 +65,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     address[] candidates;
     uint256 amount;
     uint256 channelAmount;
+    uint256 reward; // stored reward of delegator
     uint256[] stakeIds;
     mapping(uint256 => StakeTx) stakeTxMap;
   }
@@ -77,6 +78,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   struct StakeTx {
     uint256 amount;
     uint256 stakeRound;
+    uint256 reward; // stored reward of stake tx
     address candidate;
     bool    skipReward;
   }
@@ -205,6 +207,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     require(amount != 0, "stake tx not found");
 
     IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator);
+    d.reward += stx.reward;
 
     candidateMap[stx.candidate].realtimeAmount -= amount;
     d.amount -= amount;
@@ -273,12 +276,11 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @param delegator the delegator address
   /// @param changeRound the change round
   /// @param isStakeWeight whether the delegator set the stake weight or not
-  /// @param claim claim or store rewards
-  /// @return reward Amount claimed
   /// @return stakedAmount1 the staked amount in the first round
   /// @return stakedAmount2 the real amount in the last round
-  function liquidationReward(bool claim, bool isStakeWeight, address delegator, uint256 changeRound) external override onlyStakeHub returns (uint256 reward, uint256 stakedAmount1, uint256 stakedAmount2) {
+  function liquidationReward(bool isStakeWeight, address delegator, uint256 changeRound) external override onlyStakeHub returns (uint256 stakedAmount1, uint256 stakedAmount2) {
     Delegator storage d = delegatorMap[delegator];
+    uint256 reward;
     uint256 rewardSum;
     uint256 size;
     uint256 s1;
@@ -301,9 +303,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         if (stakeTx.skipReward) {
           stakeTx.skipReward = false;
         }
-        if (claim) {
-          stakeTx.stakeRound = roundTag - 1;
-        }
+        stakeTx.reward += reward;
         candidate = stakeTx.candidate;
       } else {
         candidate = d.candidates[i - 1];
@@ -321,13 +321,11 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
             _removeDelegation(delegator, candidate);
           }
         }
+        d.reward += reward;
       }
+
       if (reward != 0) {
-        if (claim) {
-          emit collectedReward(candidate, delegator, reward, 0);
-        } else {
-          emit storedReward(candidate, delegator, reward, 0);
-        }
+        emit storedReward(candidate, delegator, reward, 0);
         rewardSum += reward;
       }
       stakedAmount1 += s1;
@@ -338,17 +336,42 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       rewardSum = IChannel(CHANNEL_ADDR).payCommissions(delegator, d.amount, rewardSum);
     }
 
+    // handle historical reward
     reward = rewardMap[delegator].reward;
     if (reward != 0 || rewardMap[delegator].accStakedAmount != 0) {
       delete rewardMap[delegator];
     }
-    reward += rewardSum;
     if (reward != 0) {
-      if (claim) {
-        emit claimedCoinReward(delegator, reward, 0);
-      } else {
-        emit storedCoinReward(delegator, reward, 0);
-      }
+      delegatorMap[delegator].reward += reward;
+      rewardSum += reward;
+    }
+
+    if (rewardSum != 0) {
+      emit storedCoinReward(delegator, reward, 0);
+    }
+  }
+
+  /// Claim reward for delegator
+  /// @param delegator the delegator address
+  /// @return reward Amount claimed
+  function claimReward(address delegator) override external onlyStakeHub returns (uint256 reward) {
+    Delegator storage d = delegatorMap[delegator];
+
+    // claim reward and reset delegator reward
+    reward += d.reward;
+    d.reward = 0;
+
+    uint256 txSize = d.stakeIds.length;
+    for (uint256 i = txSize; i != 0; --i) {
+      StakeTx storage stx = d.stakeTxMap[d.stakeIds[i-1]];
+      // claim reward and reset stake tx
+      reward += stx.reward;
+      stx.reward = 0;
+      stx.stakeRound = roundTag - 1;
+    }
+
+    if (reward != 0) {
+      emit claimedCoinReward(delegator, reward, 0);
     }
   }
 
@@ -454,6 +477,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       if (!stakeTx.skipReward) {
         cd.stakedAmount += stakeTx.amount;
       }
+      d.reward += stakeTx.reward;
 
       delete d.stakeTxMap[stakeId];
       d.stakeIds.pop();
@@ -514,6 +538,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     d.stakeTxMap[stakeId] = StakeTx({
       candidate: candidate,
       stakeRound: stakeRound,
+      reward: 0,
       skipReward: false,
       amount: amount
     });

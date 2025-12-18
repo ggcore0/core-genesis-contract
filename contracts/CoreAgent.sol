@@ -97,7 +97,6 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   );
   event claimedCoinReward(address indexed delegator, uint256 amount, uint256 accStakedAmount);
   event storedCoinReward(address indexed delegator, uint256 amount, uint256 accStakedAmount);
-  event collectedReward(address indexed candidate, address indexed delegator, uint256 reward, uint256 accStakedAmount);
   event storedReward(address indexed candidate, address indexed delegator, uint256 reward, uint256 accStakedAmount);
 
   modifier onlyInternalCall() {
@@ -334,20 +333,14 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
 
     if (rewardSum != 0) {
       rewardSum = IChannel(CHANNEL_ADDR).payCommissions(delegator, d.amount, rewardSum);
+      emit storedCoinReward(delegator, rewardSum, 0);
     }
 
     // handle historical reward
     reward = rewardMap[delegator].reward;
     if (reward != 0 || rewardMap[delegator].accStakedAmount != 0) {
-      delete rewardMap[delegator];
-    }
-    if (reward != 0) {
       delegatorMap[delegator].reward += reward;
-      rewardSum += reward;
-    }
-
-    if (rewardSum != 0) {
-      emit storedCoinReward(delegator, reward, 0);
+      delete rewardMap[delegator];
     }
   }
 
@@ -358,16 +351,20 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     Delegator storage d = delegatorMap[delegator];
 
     // claim reward and reset delegator reward
-    reward += d.reward;
+    reward = d.reward;
     d.reward = 0;
 
     uint256 txSize = d.stakeIds.length;
     for (uint256 i = txSize; i != 0; --i) {
       StakeTx storage stx = d.stakeTxMap[d.stakeIds[i-1]];
       // claim reward and reset stake tx
-      reward += stx.reward;
-      stx.reward = 0;
-      stx.stakeRound = roundTag - 1;
+      if (stx.reward != 0) {
+        reward += stx.reward;
+        stx.reward = 0;
+      }
+      if (stx.stakeRound != roundTag) {
+        stx.stakeRound = roundTag - 1;
+      }
     }
 
     if (reward != 0) {

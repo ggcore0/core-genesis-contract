@@ -50,6 +50,8 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   event claimedBtcReward(address indexed delegator, uint256 amount, uint256 unclaimedAmount, int256 floatReward, uint256 accStakedAmount, uint256 dualStakingRate);
   event storedBtcReward(address indexed delegator, uint256 amount, uint256 unclaimedAmount, int256 floatReward, uint256 accStakedAmount, uint256 dualStakingRate);
 
+  error NotImplemented();
+
   function init() external onlyNotInit {
     assetWeight = DEFAULT_CORE_BTC_CONVERSION;
     alreadyInit = true;
@@ -62,6 +64,7 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// @param stakeWeight the weight of stake asset
   function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 /*round*/, uint256 stakeWeight) external override onlyStakeHub returns (uint256) {
     IBitcoinStake(BTC_STAKE_ADDR).distributeReward(validators, rewardList, stakeWeight);
+    return 0;
   }
 
   /// Get staked BTC amount
@@ -84,15 +87,26 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
     IBitcoinStake(BTC_STAKE_ADDR).setNewRound(validators, round);
   }
 
-  /// Claim reward for delegator
+  /// Liquidation reward for delegator
   /// @param delegator the delegator address
   /// @param coreAmount the staked amount of staked CORE.
   /// @param settleRound the settlement round
-  /// @param claim claim or store rewards
-  /// @return reward Amount claimed
   /// @return floatReward floating reward amount
-  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound, bool claim) external override onlyStakeHub returns (uint256 reward, int256 floatReward) {
-    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(delegator, coreAmount, settleRound, claim);
+  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external override onlyStakeHub returns (int256 floatReward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(delegator, coreAmount, settleRound);
+  }
+
+  /// Use `claimReward(address delegator, bytes32[] memory btcIds)` instead.
+  function claimReward(address) external override pure returns (uint256) {
+    revert NotImplemented();
+  }
+
+  /// Claim reward for delegator
+  /// @param delegator the delegator address
+  /// @param btcIds the given txid list to claim. If the list is empty, it means all.
+  /// @return reward Amount claimed
+  function claimReward(address delegator, bytes32[] memory btcIds) external override onlyStakeHub returns (uint256 reward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).claimReward(delegator, btcIds);
   }
 
   /*********************** External methods ********************************/

@@ -114,27 +114,24 @@ contract HashPowerAgent is IAgent, System, IParamSubscriber {
 
   /// Claim reward for delegator
   /// @param delegator the delegator address
-  /// @param claim claim or store claim
   /// @return reward Amount claimed
-  /// @return floatReward floating reward amount
-  function liquidationReward(address delegator, uint256 /*coreAmount*/, uint256 /*settleRound*/, bool claim) external override onlyStakeHub returns (uint256 reward, int256 floatReward) {
+  function claimReward(address delegator) external override onlyStakeHub returns (uint256 reward) {
     reward = rewardMap[delegator].reward;
     if (reward != 0) {
-      delete rewardMap[delegator];
-      if (claim) {
-        emit claimedHashReward(delegator, reward);
+      if (rewardMap[delegator].stakeWeight == 0) {
+        delete rewardMap[delegator];
       } else {
-        emit storedHashReward(delegator, reward);
+        rewardMap[delegator].stakeWeight = SatoshiPlusHelper.DENOMINATOR - SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND;
+        delete rewardMap[delegator].reward;
       }
+      emit claimedHashReward(delegator, reward);
     }
-    return (reward, 0);
   }
 
   /// Enable stake weight.
   /// @param delegator the delegator address
   function enableStakeWeight(address delegator) external override onlyStakeHub {
     rewardMap[delegator].stakeWeight = SatoshiPlusHelper.DENOMINATOR - SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND;
-    rewardMap[delegator].round = 0;
   }
 
   /// Disable stake weight.

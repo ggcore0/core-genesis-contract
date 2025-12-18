@@ -81,8 +81,6 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     bool    skipReward;
   }
 
-  error NotImplemented();
-
   error InsufficientTokens(uint32 channelId);
 
   /*********************** events **************************/
@@ -352,11 +350,6 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         emit storedCoinReward(delegator, reward, 0);
       }
     }
-  }
-
-  /// Claim reward for delegator
-  function liquidationReward(address, uint256, uint256, bool) external override pure returns (uint256, int256) {
-    revert NotImplemented();
   }
 
   /// for backward compatibility - allow users to unstake through PledgeAgent

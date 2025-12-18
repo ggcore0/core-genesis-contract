@@ -87,6 +87,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
 
   struct Delegator {
     bytes32[] txids;
+    uint256 reward;
   }
 
   struct DepositReceipt {
@@ -300,6 +301,12 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       floatReward += floatRewardPerTx;
       if (expired) {
         emit btcExpired(txid, receiptMap[txid].delegator);
+        delegatorMap[delegator].reward += receiptMap[txid].reward;
+        delete receiptMap[txid];
+        if (i != txids.length) {
+          txids[i - 1] = txids[txids.length - 1];
+        }
+        txids.pop();
       }
     }
   }
@@ -312,7 +319,6 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     uint256 psize = btcIds.length;
     bytes32[] storage dtxids = delegatorMap[delegator].txids;
     bool bclaim;
-    bool expired;
     bytes32 txid;
     for (uint256 i = dtxids.length; i != 0; i--) {
       txid = dtxids[i-1];
@@ -326,16 +332,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       if (psize == 0 || bclaim) {
         DepositReceipt storage dr = receiptMap[txid];
         reward += dr.reward;
-        (, expired) = _getCalculateRound(btcTxMap[txid].lockTime, roundTag-1);
-        if (expired) {
-          delete receiptMap[txid];
-          if (i != dtxids.length) {
-            dtxids[i - 1] = dtxids[dtxids.length - 1];
-          }
-          dtxids.pop();
-        } else {
-          dr.reward = 0;
-        }
+        dr.reward = 0;
       }
     }
   }
@@ -369,6 +366,24 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
         delete expireInfo.amountMap[candidate];
       }
       delete round2expireInfoMap[r];
+    }
+  }
+
+  /// This method merge the list of continuousRewardEndRounds.
+  /// The goal is to improve the efficiency of retrieving cached data
+  /// @param candidate the candidate address
+  function cacheRoundAccruedReward(address candidate) public {
+    Candidate storage c = candidateMap[candidate];
+    uint256 l = c.continuousRewardEndRounds.length;
+    if (l > 1) {
+      uint256 round = c.continuousRewardEndRounds[l - 2];
+      mapping(uint256 => uint256) storage m = accruedRewardPerBTCMap[candidate];
+      uint256 reward = m[round];
+      for (round = round + 1; m[round] == 0; round++) {
+        m[round] = reward;
+      }
+      c.continuousRewardEndRounds[l - 2] = c.continuousRewardEndRounds[l - 1];
+      c.continuousRewardEndRounds.pop();
     }
   }
 
@@ -629,14 +644,6 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     return (reward, false);
   }
 
-  function _getAndCacheRoundAccruedReward(address candidate, uint256 round) internal returns (uint256 reward) {
-    bool cached;
-    (reward, cached) = _getRoundAccruedReward(candidate, round);
-    if (!cached && reward != 0) {
-      accruedRewardPerBTCMap[candidate][round] = reward;
-    }
-  }
-
   /// Exposed for staking API to do readonly calls.
   /// @param delegator The reward address of BTC staking.
   /// @param coreAmount the amount of staked CORE.
@@ -651,7 +658,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     bytes32 txid;
     for (uint256 i = size; i != 0; i--) {
       txid = txids[i - 1];
-      (rewards[i - 1], floatRewards[i - 1], coreAmount) = _caculateReward(txid, coreAmount, receiptMap[txid].round, settleRound);
+      (rewards[i - 1], floatRewards[i - 1], coreAmount, , , ,) = _calculateReward(txid, coreAmount, receiptMap[txid].round, settleRound);
     }
   }
 
@@ -686,41 +693,32 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
   /// @return floatReward floating reward amount
   /// @return remainingCoreAmount the remaining coreAmount
   function _collectReward(bytes32 txid, uint256 coreAmount, uint256 drRound, uint256 settleRound) internal returns (uint256 reward, bool expired, int256 floatReward, uint256 remainingCoreAmount) {
+    uint256 ldPercentage;
+    uint256 dsPercentage;
+    bool ret;
+    (reward, floatReward, remainingCoreAmount, expired, ret, ldPercentage, dsPercentage) = _calculateReward(txid, coreAmount, drRound, settleRound);
+    if (ret) {
+      receiptMap[txid].round = settleRound;
+    }
+    if (reward != 0) {
+      emit storedRewardBtcTx(txid, reward, expired, ldPercentage, dsPercentage);
+    }
+  }
+
+  function _calculateReward(bytes32 txid, uint256 coreAmount, uint256 drRound, uint256 settleRound) internal view returns (uint256 reward, int256 floatReward, uint256 remainingCoreAmount, bool expired, bool ret, uint256 ldPercentage, uint256 dsPercentage) {
     require(drRound != 0, "invalid deposit receipt");
     require(settleRound < roundTag, "invalid settle round");
     BtcTx storage bt = btcTxMap[txid];
     (settleRound, expired) = _getCalculateRound(bt.lockTime, settleRound);
-    if (drRound < settleRound) {
-      DepositReceipt storage dr = receiptMap[txid];
-      // full reward
-      reward = (_getAndCacheRoundAccruedReward(dr.candidate, settleRound) - _getAndCacheRoundAccruedReward(dr.candidate, drRound)) * bt.amount / SatoshiPlusHelper.BTC_DECIMAL;
-      dr.round = settleRound;
-    }
-    uint256 ldPercentage;
-    uint256 dsPercentage;
-    (reward, floatReward, remainingCoreAmount, ldPercentage, dsPercentage) = _calculateFloatReward(bt, reward, coreAmount);
-    if (reward != 0) {
-      emit storedRewardBtcTx(txid, reward, expired, ldPercentage, dsPercentage);
-    }
-    return (reward, expired, floatReward, remainingCoreAmount);
-  }
-
-  function _caculateReward(bytes32 txid, uint256 coreAmount, uint256 drRound, uint256 settleRound) internal view returns (uint256 reward, int256 floatReward, uint256 remainingCoreAmount) {
-    require(drRound != 0, "invalid deposit receipt");
-    require(settleRound < roundTag, "invalid settle round");
-
-    BtcTx storage bt = btcTxMap[txid];
-    (settleRound, ) = _getCalculateRound(bt.lockTime, settleRound);
-
-    if (drRound < settleRound) {
+    ret = (drRound < settleRound);
+    if (ret) {
       DepositReceipt storage dr = receiptMap[txid];
       // full reward
       (uint256 settleRoundReward,) = _getRoundAccruedReward(dr.candidate, settleRound);
       (uint256 drRoundReward, ) = _getRoundAccruedReward(dr.candidate, drRound);
       reward = (settleRoundReward - drRoundReward) * bt.amount / SatoshiPlusHelper.BTC_DECIMAL;
     }
-    (reward, floatReward, remainingCoreAmount, ,) = _calculateFloatReward(bt, reward, coreAmount);
-    return (reward, floatReward, remainingCoreAmount);
+    (reward, floatReward, remainingCoreAmount, ldPercentage, dsPercentage) = _calculateFloatReward(bt, reward, coreAmount);
   }
 
   function _calculateFloatReward(BtcTx storage bt, uint256 initReward, uint256 coreAmount) internal view returns (uint256 reward, int256 floatReward, uint256 remainingCoreAmount, uint256 ldPercentage, uint256 dsPercentage) {

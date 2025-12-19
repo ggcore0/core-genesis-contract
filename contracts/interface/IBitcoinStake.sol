@@ -46,7 +46,7 @@ interface IBitcoinStake {
   /// @param settleRound the settlement round
   /// @return floatReward floating reward amount
   function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external returns (int256 floatReward);
-  
+
   /// Claim reward for delegator
   /// @param delegator the delegator address
   /// @param btcIds the given txid list to claim. If the list is empty, it means all.

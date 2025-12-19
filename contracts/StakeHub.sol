@@ -28,8 +28,9 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
 
   uint32 public constant FLAG_STAKE_WEIGHT = 1;
   uint32 public constant FLAG_STAKE_CORE = 2;
-  uint32 public constant FLAG_STAKE_BTC = 4;
-  uint32 public constant FLAG_STAKE_HASHPOWER = 8;
+  uint32 public constant FLAG_STAKE_HASHPOWER = 4;
+  uint32 public constant FLAG_STAKE_BTC = 8;
+  uint32 public constant FLAG_STAKE_ALL = FLAG_STAKE_CORE|FLAG_STAKE_HASHPOWER|FLAG_STAKE_BTC;
 
   // Supported asset types
   //  - CORE
@@ -249,28 +250,49 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
   /// Claim reward for delegator
   /// @return rewards Amounts claimed
   function claimReward() external returns (uint256[] memory rewards) {
-    bytes32[] memory emptyBytes = new bytes32[](0);
-    (rewards,) = _claimReward(msg.sender, emptyBytes);
+    bytes32[] memory emptyIds;
+    (rewards,) = _claimReward(msg.sender, FLAG_STAKE_ALL, emptyIds);
   }
 
-  /// Claim reward for delegator
-  /// @return rewards Amounts claimed
-  function claimReward(bytes32[] memory btcIds) public returns (uint256[] memory rewards) {
-    (rewards,) = _claimReward(msg.sender, btcIds);
+  /// Claim Core reward for delegator
+  /// @param txIds the given id list to claim. If the list is empty, it means all.
+  /// @return reward Amounts claimed
+  function claimCoreReward(bytes32[] memory txIds) public returns (uint256 reward) {
+    (, reward) = _claimReward(msg.sender, FLAG_STAKE_CORE, txIds);
   }
 
-  function _claimReward(address delegator, bytes32[] memory btcIds) internal returns (uint256[] memory rewards, uint256 totalReward) {
+  /// Claim hash power reward for delegator
+  /// @return reward Amounts claimed
+  function claimHashReward() public returns (uint256 reward) {
+    bytes32[] memory emptyIds;
+    (, reward) = _claimReward(msg.sender, FLAG_STAKE_HASHPOWER, emptyIds);
+  }
+
+  /// Claim btc reward for delegator
+  /// @param txIds the given id list to claim. If the list is empty, it means all.
+  /// @return reward Amounts claimed
+  function claimBtcReward(bytes32[] memory txIds) public returns (uint256 reward) {
+    (, reward) = _claimReward(msg.sender, FLAG_STAKE_BTC, txIds);
+  }
+
+  function _claimReward(address delegator, uint256 flag, bytes32[] memory txIds) internal returns (uint256[] memory rewards, uint256 totalReward) {
     rewards = new uint256[](3);
     _calculateReward(delegator);
 
-    rewards[0] = IAgent(assets[0].agent).claimReward(delegator);
-    rewards[1] = IAgent(assets[1].agent).claimReward(delegator);
-    rewards[2] = IBtcAgent(assets[1].agent).claimReward(delegator, btcIds);
+    if (FLAG_STAKE_CORE == (flag & FLAG_STAKE_CORE)) {
+      rewards[0] = IAgent(assets[0].agent).claimReward(delegator, txIds);
+    }
+    if (FLAG_STAKE_HASHPOWER == (flag & FLAG_STAKE_HASHPOWER)) {
+      rewards[1] = IAgent(assets[1].agent).claimReward(delegator, txIds);
+    }
+    if (FLAG_STAKE_BTC == (flag & FLAG_STAKE_BTC)) {
+      rewards[2] = IAgent(assets[2].agent).claimReward(delegator, txIds);
+    }
 
-    Delegator storage d  = delegatorMap[delegator];
+    Delegator storage d = delegatorMap[delegator];
     if (d.rewards.length != 0) {
       for (uint256 i = 0; i < d.rewards.length; i++) {
-        rewards[i] += d.rewards[i];
+        totalReward += d.rewards[i];
       }
       delete delegatorMap[delegator].rewards;
     }
@@ -288,8 +310,8 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
   /// @param delegator delegator address
   /// @return reward Amounts claimed
   function proxyClaimReward(address delegator) external onlyPledgeAgent returns (uint256 reward) {
-    bytes32[] memory emptyBytes = new bytes32[](0);
-    (, reward) = _claimReward(delegator, emptyBytes);
+    bytes32[] memory emptyIds;
+    (, reward) = _claimReward(delegator, FLAG_STAKE_ALL, emptyIds);
   }
 
   /// This method is invoked whenever user CORE/BTC stake changes.

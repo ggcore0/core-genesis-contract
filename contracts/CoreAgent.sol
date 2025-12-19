@@ -66,8 +66,8 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     uint256 amount;
     uint256 channelAmount;
     uint256 reward; // stored reward of delegator
-    uint256[] stakeIds;
-    mapping(uint256 => StakeTx) stakeTxMap;
+    bytes32[] stakeIds;
+    mapping(bytes32 => StakeTx) stakeTxMap;
   }
 
   struct Reward {
@@ -198,7 +198,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
 
   /// Undelegate a stake tx
   /// @param stakeId The id of a stake tx
-  function undelegateTx(uint256 stakeId) public {
+  function undelegateTx(bytes32 stakeId) public {
     address delegator = msg.sender;
     Delegator storage d = delegatorMap[delegator];
     StakeTx storage stx = d.stakeTxMap[stakeId];
@@ -249,7 +249,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// Transfer stake tx to a new validator
   /// @param stakeId The id of the stake tx
   /// @param targetCandidate The validator to transfer stake tx to
-  function transferTx(uint256 stakeId, address targetCandidate) public {
+  function transferTx(bytes32 stakeId, address targetCandidate) public {
     address delegator = msg.sender;
     Delegator storage d = delegatorMap[delegator];
     StakeTx storage stx = d.stakeTxMap[stakeId];
@@ -346,8 +346,9 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
 
   /// Claim reward for delegator
   /// @param delegator the delegator address
+  /// @param txIds the given txid list to claim. If the list is empty, it means all.
   /// @return reward Amount claimed
-  function claimReward(address delegator) override external onlyStakeHub returns (uint256 reward) {
+  function claimReward(address delegator, bytes32[] memory txIds) override external onlyStakeHub returns (uint256 reward) {
     Delegator storage d = delegatorMap[delegator];
 
     // claim reward and reset delegator reward
@@ -460,7 +461,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   function disableStakeWeight(address delegator) external override onlyStakeHub {
     Delegator storage d = delegatorMap[delegator];
     for (uint256 i = d.stakeIds.length; i != 0; --i) {
-      uint256 stakeId = d.stakeIds[i-1];
+      bytes32 stakeId = d.stakeIds[i-1];
       StakeTx storage stakeTx = d.stakeTxMap[stakeId];
       Candidate storage a = candidateMap[stakeTx.candidate];
       CoinDelegator storage cd = a.cDelegatorMap[delegator];
@@ -530,7 +531,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
 
   function _addStakeTx(address delegator, address candidate, uint256 amount, uint256 stakeRound) internal {
     Delegator storage d = delegatorMap[delegator];
-    uint256 stakeId = ++stakeIdGenerator;
+    bytes32 stakeId = bytes32(++stakeIdGenerator);
     d.stakeIds.push(stakeId);
     d.stakeTxMap[stakeId] = StakeTx({
       candidate: candidate,
@@ -862,10 +863,10 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     return candidateMap[candidate].continuousRewardEndRounds;
   }
 
-  function getStakeTxs(address delegator) external view returns (uint256[] memory stakeIds, StakeTx[] memory stakeTxs) {
+  function getStakeTxs(address delegator) external view returns (bytes32[] memory stakeIds, StakeTx[] memory stakeTxs) {
     Delegator storage d = delegatorMap[delegator];
     uint256 size = d.stakeIds.length;
-    stakeIds = new uint256[](size);
+    stakeIds = new bytes32[](size);
     stakeTxs = new StakeTx[](size);
     for (uint i = 0; i < size; i++) {
       stakeIds[i] = d.stakeIds[i];
@@ -873,7 +874,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     }
   }
 
-  function getStakeTx(address delegator, uint256 stakeTxId) external view returns (StakeTx memory) {
+  function getStakeTx(address delegator, bytes32 stakeTxId) external view returns (StakeTx memory) {
     return delegatorMap[delegator].stakeTxMap[stakeTxId];
   }
 }

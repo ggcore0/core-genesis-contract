@@ -41,15 +41,24 @@ interface IBitcoinStake {
   function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external;
 
   /// Claim reward for delegator
+  /// @param isStakeWeight whether the delegator is stake weight
   /// @param delegator the delegator address
   /// @param coreAmount the staked core amount
   /// @param settleRound the settlement round
   /// @return floatReward floating reward amount
-  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external returns (int256 floatReward);
+  function liquidationReward(bool isStakeWeight, address delegator, uint256 coreAmount, uint256 settleRound) external returns (int256 floatReward);
 
   /// Claim reward for delegator
   /// @param delegator the delegator address
   /// @param btcIds the given txid list to claim. If the list is empty, it means all.
   /// @return reward Amount claimed
   function claimReward(address delegator, bytes32[] memory btcIds) external returns (uint256 reward);
+
+    /// Enable stake weight
+  /// @param delegator the delegator address
+  function enableStakeWeight(address delegator) external;
+
+  /// Disable stake weight
+  /// @param delegator the delegator address
+  function disableStakeWeight(address delegator) external;
 }

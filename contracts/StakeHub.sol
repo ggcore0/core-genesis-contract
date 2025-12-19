@@ -404,10 +404,10 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     (stakedCoreAmount1, stakedCoreAmount2) = ICoreAgent(assets[0].agent).liquidationReward(_isStakeWeight, delegator, d.changeRound);
 
     if (stakedCoreAmount1 != stakedCoreAmount2) {
-      totalFloatReward = IBtcAgent(assets[2].agent).liquidationReward(delegator, stakedCoreAmount1, d.changeRound);
+      totalFloatReward = IBtcAgent(assets[2].agent).liquidationReward(_isStakeWeight, delegator, stakedCoreAmount1, d.changeRound);
     }
     if (d.changeRound < lastRound || stakedCoreAmount1 == stakedCoreAmount2) {
-      int256 floatReward = IBtcAgent(assets[2].agent).liquidationReward(delegator, stakedCoreAmount2, lastRound);
+      int256 floatReward = IBtcAgent(assets[2].agent).liquidationReward(_isStakeWeight, delegator, stakedCoreAmount2, lastRound);
       totalFloatReward += floatReward;
     }
     d.changeRound = currentRound;

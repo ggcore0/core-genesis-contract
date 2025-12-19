@@ -88,17 +88,13 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   }
 
   /// Liquidation reward for delegator
+  /// @param isStakeWeight whether the delegator is stake weight
   /// @param delegator the delegator address
   /// @param coreAmount the staked amount of staked CORE.
   /// @param settleRound the settlement round
   /// @return floatReward floating reward amount
-  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external override onlyStakeHub returns (int256 floatReward) {
-    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(delegator, coreAmount, settleRound);
-  }
-
-  /// Use `claimReward(address delegator, bytes32[] memory btcIds)` instead.
-  function claimReward(address) external override pure returns (uint256) {
-    revert NotImplemented();
+  function liquidationReward(bool isStakeWeight, address delegator, uint256 coreAmount, uint256 settleRound) external override onlyStakeHub returns (int256 floatReward) {
+    return IBitcoinStake(BTC_STAKE_ADDR).liquidationReward(isStakeWeight, delegator, coreAmount, settleRound);
   }
 
   /// Claim reward for delegator
@@ -142,13 +138,13 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// Enable stake weight.
   /// @param delegator the delegator address
   function enableStakeWeight(address delegator) external override onlyStakeHub {
-    // TODO: implement
+     IBitcoinStake(BTC_STAKE_ADDR).enableStakeWeight(delegator);
   }
 
   /// Disable stake weight.
   /// @param delegator the delegator address
   function disableStakeWeight(address delegator) external override onlyStakeHub {
-    // TODO: implement
+    IBitcoinStake(BTC_STAKE_ADDR).disableStakeWeight(delegator);
   }
 
   /*********************** Governance ********************************/

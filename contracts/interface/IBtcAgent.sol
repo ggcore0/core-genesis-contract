@@ -20,9 +20,10 @@ interface IBtcAgent is IAgent {
   function getGrade(uint256 rate) external view returns (uint256 percentage, uint256 stakeRate);
 
   /// Liquidation reward for delegator
+  /// @param isStakeWeight whether the delegator is stake weight
   /// @param delegator the delegator address
   /// @param coreAmount the staked amount of staked CORE.
   /// @param settleRound the settlement round
   /// @return floatReward floating reward amount
-  function liquidationReward(address delegator, uint256 coreAmount, uint256 settleRound) external returns (int256 floatReward);
+  function liquidationReward(bool isStakeWeight, address delegator, uint256 coreAmount, uint256 settleRound) external returns (int256 floatReward);
 }

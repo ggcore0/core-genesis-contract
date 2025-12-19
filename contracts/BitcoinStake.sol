@@ -103,6 +103,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     uint256 stakedAmount;
     uint256 realtimeAmount;
     uint256[] continuousRewardEndRounds;
+    uint256 undelegateAmount;
   }
 
   struct ExpireInfo {
@@ -239,7 +240,8 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
   /// @param stakeWeight the weight of stake asset
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external override onlyCaller(BTC_AGENT_ADDR) {
+  /// @return burnAmount the amount of reward to burn
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external override onlyCaller(BTC_AGENT_ADDR) returns (uint256 burnAmount) {
     uint256 length = validators.length;
     uint256 l;
     address validator;
@@ -247,7 +249,6 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       if (rewardList[i] == 0) {
         continue;
       }
-      uint256 historyReward;
       uint256 lastRewardRound;
       validator = validators[i];
       mapping(uint256 => uint256) storage m = accruedRewardPerBTCMap[validator];
@@ -258,14 +259,18 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       l = c.continuousRewardEndRounds.length;
       if (l != 0) {
         lastRewardRound = c.continuousRewardEndRounds[l - 1];
-        historyReward = m[lastRewardRound];
+        m[roundTag] = m[lastRewardRound];
       }
       // Add new accrued reward of per btc on the validator for this round
-      m[roundTag] = historyReward + rewardList[i] * SatoshiPlusHelper.BTC_DECIMAL * SatoshiPlusHelper.DENOMINATOR / c.stakedAmount / stakeWeight;
+      m[roundTag] += rewardList[i] * SatoshiPlusHelper.BTC_DECIMAL * SatoshiPlusHelper.DENOMINATOR / c.stakedAmount / stakeWeight;
       if (lastRewardRound + 1 == roundTag) {
         c.continuousRewardEndRounds[l - 1] = roundTag;
       } else {
         c.continuousRewardEndRounds.push(roundTag);
+      }
+
+      if (c.undelegateAmount != 0) {
+        burnAmount += rewardList[i] * c.undelegateAmount / c.stakedAmount;
       }
     }
   }
@@ -352,26 +357,26 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       validator = validators[i];
       candidateMap[validator].stakedAmount = candidateMap[validator].realtimeAmount;
     }
-    roundTag = round;
-  }
 
-  /// Prepare for the new round
-  /// @param round The new round tag
-  function prepare(uint256 round) external override onlyStakeHub {
     // the expired BTC staking values will be removed
     address candidate;
+    uint256 expireAmount;
     for (uint256 r = roundTag + 1; r <= round; ++r) {
       ExpireInfo storage expireInfo = round2expireInfoMap[r];
       uint256 l = expireInfo.candidateList.length;
       if (l == 0) continue;
       for (uint256 j = l; j != 0; --j) {
         candidate = expireInfo.candidateList[j - 1];
-        candidateMap[candidate].realtimeAmount -= (expireInfo.amountMap[candidate] - 1);
+        expireAmount = (expireInfo.amountMap[candidate] - 1);
+        candidateMap[candidate].undelegateAmount -= expireAmount;
+        candidateMap[candidate].realtimeAmount -= expireAmount;
         expireInfo.candidateList.pop();
         delete expireInfo.amountMap[candidate];
       }
       delete round2expireInfoMap[r];
     }
+
+    roundTag = round;
   }
 
   /// This method merge the list of continuousRewardEndRounds.
@@ -477,9 +482,6 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
 
       RLPDecode.RLPItem[] memory items = value.toRLPItem().toList();
       uint256 currentLength = items.length;
-      if (currentLength == 0) {
-         revert MismatchParamLength(key);
-      }
 
       for (uint256 i = currentLength; i < lastLength; i++) {
         grades.pop();
@@ -510,7 +512,9 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
         require(grades[i-1].lockDuration < grades[i].lockDuration, "lockDuration disorder");
         require(grades[i-1].percentage < grades[i].percentage, "percentage disorder");
       }
-      require(grades[0].lockDuration == 0, "lowest lockDuration must be zero");
+      if (currentLength != 0) {
+        require(grades[0].lockDuration == 0, "lowest lockDuration must be zero");
+      }
     } else if (Memory.compareStrings(key, "gradeActive")) {
       if (value.length != 1) {
         revert MismatchParamLength(key);

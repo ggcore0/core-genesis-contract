@@ -59,6 +59,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     // Realtime staked amount
     uint256 realtimeAmount;
     uint256[] continuousRewardEndRounds;
+    uint256 undelegateAmount;
   }
 
   struct Delegator {
@@ -117,7 +118,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @param rewardList List of reward amount
   /// @param round The round tag
   /// @param stakeWeight the weight of stake asset
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round, uint256 stakeWeight) external override onlyStakeHub returns (uint256)
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round, uint256 stakeWeight) external override onlyStakeHub returns (uint256 burnAmount)
   {
     require(validators.length == rewardList.length, "the length of validators and rewardList should be equal");
 
@@ -146,8 +147,8 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       } else {
         c.continuousRewardEndRounds.push(round);
       }
+      burnAmount += rewardList[i] * c.undelegateAmount / c.amount;
     }
-    return 0;
   }
 
   /// Get staked CORE amount
@@ -172,6 +173,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     for (uint256 i = 0; i < validatorSize; ++i) {
       Candidate storage a = candidateMap[validators[i]];
       a.amount = a.realtimeAmount;
+      a.undelegateAmount = 0;
     }
     roundTag = round;
   }
@@ -355,6 +357,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     reward = d.reward;
     d.reward = 0;
 
+    // TODO loop txIds
     uint256 txSize = d.stakeIds.length;
     for (uint256 i = txSize; i != 0; --i) {
       StakeTx storage stx = d.stakeTxMap[d.stakeIds[i-1]];
@@ -605,7 +608,11 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         cd.stakedAmount = 0;
       }
     }
-    undelegatedNewAmount = amount - (stakedAmount - cd.stakedAmount);
+    uint256 reducedStakedAmount = stakedAmount - cd.stakedAmount;
+    if (!isTransfer && reducedStakedAmount != 0) {
+      a.undelegateAmount += reducedStakedAmount;
+    }
+    undelegatedNewAmount = amount - reducedStakedAmount;
   }
 
   function _deductTransferredAmount(address delegator, uint256 amount) internal {
@@ -619,6 +626,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       transferredAmount = cd.transferredAmount;
       if (transferredAmount != 0) {
         if (transferredAmount <= amount) {
+          candidateMap[candidate].undelegateAmount += transferredAmount;
           amount -= transferredAmount;
           cd.transferredAmount = 0;
           if (cd.realtimeAmount == 0) {
@@ -629,6 +637,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
             d.candidates.pop();
           }
         } else {
+          candidateMap[candidate].undelegateAmount += amount;
           cd.transferredAmount -= amount;
           break;
         }

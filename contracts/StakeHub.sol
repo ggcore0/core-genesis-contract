@@ -175,7 +175,7 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
         rewards[j] = rewardList[j] * candidateScoresMap[validator][i+1] / totalScore;
       }
       emit roundReward(assets[i].name, roundTag, validators, rewards);
-      IAgent(assets[i].agent).distributeReward(validators, rewards, roundTag, stakeWeight);
+      burnReward += IAgent(assets[i].agent).distributeReward(validators, rewards, roundTag, stakeWeight);
     }
     // burn rewards after initial setup, should reach only if running a new chain from genesis
     if (burnReward != 0) {
@@ -198,7 +198,6 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     address[] calldata candidates,
     uint256 round
   ) external override onlyCandidate returns (uint256[] memory scores) {
-    IBitcoinStake(BTC_STAKE_ADDR).prepare(round);
     uint256 candidateSize = candidates.length;
     uint256 assetSize = assets.length;
 
@@ -292,7 +291,7 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     Delegator storage d = delegatorMap[delegator];
     if (d.rewards.length != 0) {
       for (uint256 i = 0; i < d.rewards.length; i++) {
-        totalReward += d.rewards[i];
+        rewards[i] += d.rewards[i];
       }
       delete delegatorMap[delegator].rewards;
     }

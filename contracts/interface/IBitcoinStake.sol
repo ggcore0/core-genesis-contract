@@ -20,10 +20,6 @@ interface IBitcoinStake {
   /// @param index index of the tx in Merkle tree
   function undelegate(bytes calldata btcTx, uint32 blockHeight, bytes32[] memory nodes, uint256 index) external;
 
-  /// Do some preparement before new round.
-  /// @param round The new round tag
-  function prepare(uint256 round) external;
-
   /// Get real stake amount
   /// @param candidates List of candidate operator addresses
   /// @return amounts List of amounts of all special candidates in this round
@@ -34,11 +30,12 @@ interface IBitcoinStake {
   /// @param round The new round tag
   function setNewRound(address[] calldata validators, uint256 round) external;
 
-  /// Receive round rewards from BitcoinAgent. It is triggered at the beginning of turn round
+  /// Receive round rewards from BitcoinAgent. It is triggered at the beginning of turn round.
   /// @param validators List of validator operator addresses
   /// @param rewardList List of reward amount
   /// @param stakeWeight the weight of stake asset
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external;
+  /// @return burnAmount the amount of reward to burn
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 stakeWeight) external returns (uint256 burnAmount);
 
   /// Claim reward for delegator
   /// @param isStakeWeight whether the delegator is stake weight

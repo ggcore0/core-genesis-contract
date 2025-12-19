@@ -27,8 +27,8 @@ interface IAgent {
   /// @param rewardList List of reward amount
   /// @param round The round tag
   /// @param stakeWeight the weight of stake asset
-  /// @return destoryAmount the amount of destory reward
-  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round, uint256 stakeWeight) external returns (uint256 destoryAmount);
+  /// @return burnAmount the amount of reward to burn
+  function distributeReward(address[] calldata validators, uint256[] calldata rewardList, uint256 round, uint256 stakeWeight) external returns (uint256 burnAmount);
 
   /// Claim reward for delegator
   /// @param delegator the delegator address

@@ -22,6 +22,8 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   uint256 public constant INIT_VALIDATOR_COUNT = 21;
   uint256 public constant MAX_COMMISSION_CHANGE = 10;
   uint256 public constant CANDIDATE_COUNT_LIMIT = 1000;
+  uint256 public constant MAX_NODEIDS_LIMIT = 100;
+  uint256 public constant INIT_MAX_NODEIDS = 5;
 
   uint256 public constant SET_CANDIDATE = 1;
   uint256 public constant SET_INACTIVE = 2;
@@ -66,6 +68,11 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   // Key is operate address.
   // Value is CandidateEx
   mapping(address => CandidateEx) public exMap;
+  // Use INIT_MAX_NODEIDS as the default when maxNodeIDs == 0.
+  uint256 public maxNodeIDs;
+  // Key is operate address.
+  // Value is nodeIDs list.
+  mapping(address => bytes32[]) public nodeIDsMap;
   
   struct Candidate {
     address operateAddr;
@@ -101,6 +108,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   event CommissionRateEdited(address indexed operateAddr, uint256 newRate);
   event VoteAddressEdited(address indexed operateAddr, bytes newVoteAddr);
   event FeeAddressEdited(address indexed operateAddr, address newFeeAddr);
+  event NodeIDsEdited(address indexed operateAddr, bytes32[] nodeIDs);
 
   /*********************** init **************************/
   function init() external onlyNotInit {
@@ -408,6 +416,25 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
     emit FeeAddressEdited(c.operateAddr, newFeeAddr);
   }
 
+  function updateNodeIDs(bytes32[] calldata nodeIDs) external onlyInit {
+    Candidate storage c = getCandidate();
+    uint256 len = nodeIDs.length;
+    require(len <= _effectiveMaxNodeIDs(), "too many nodeIDs");
+    for (uint256 i = 0; i < len; i++) {
+      bytes32 nodeID = nodeIDs[i];
+      require(nodeID != bytes32(0), "nodeID cannot be zero");
+      for (uint256 j = 0; j < i; j++) {
+        require(nodeIDs[j] != nodeID, "duplicate nodeID");
+      }
+    }
+
+    delete nodeIDsMap[c.operateAddr];
+    for (uint256 i = 0; i < len; i++) {
+      nodeIDsMap[c.operateAddr].push(nodeIDs[i]);
+    }
+    emit NodeIDsEdited(c.operateAddr, nodeIDs);
+  }
+
   /// Refuse to accept delegate from others
   /// @dev Candidate will not be elected in this state
   function refuseDelegate() external onlyInit onlyOperator {
@@ -453,6 +480,11 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
       return candidateSet[index - 1];
   }
 
+  function _effectiveMaxNodeIDs() internal view returns (uint256) {
+    uint256 v = maxNodeIDs;
+    return v == 0 ? INIT_MAX_NODEIDS : v;
+  }
+
   function changeStatus(Candidate storage c, uint256 newStatus) internal {
     uint256 oldStatus = c.status;
     if (oldStatus != newStatus) {
@@ -473,6 +505,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
     delete operateMap[c.operateAddr];
     delete consensusMap[c.consensusAddr];
     delete exMap[c.operateAddr];
+    delete nodeIDsMap[c.operateAddr];
 
     if (index != candidateSet.length) {
       candidateSet[index-1] = candidateSet[candidateSet.length - 1];
@@ -602,10 +635,41 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
         revert OutOfBounds(key, newAlternateValidatorCount, 0, validatorCount / 3);
       }
       maxAlternateCount = newAlternateValidatorCount;
+    } else if (Memory.compareStrings(key, "maxNodeIDs")) {
+      uint256 newMaxNodeIDs = BytesToTypes.bytesToUint256(32, value);
+      if (newMaxNodeIDs > MAX_NODEIDS_LIMIT) {
+        revert OutOfBounds(key, newMaxNodeIDs, 0, MAX_NODEIDS_LIMIT);
+      }
+      maxNodeIDs = newMaxNodeIDs;
     } else {
       revert UnsupportedGovParam(key);
     }
     emit paramChange(key, value);
+  }
+
+  function getNodeIDs(
+    address[] calldata validatorsToQuery
+  ) external view returns (address[] memory consensusAddresses, bytes32[][] memory nodeIDsList) {
+    uint256 len = validatorsToQuery.length;
+    consensusAddresses = new address[](len);
+    nodeIDsList = new bytes32[][](len);
+    for (uint256 i = 0; i < len; i++) {
+      address operateAddr = validatorsToQuery[i];
+      uint256 index = operateMap[operateAddr];
+      if (index == 0) {
+        consensusAddresses[i] = address(0);
+        nodeIDsList[i] = new bytes32[](0);
+        continue;
+      }
+      consensusAddresses[i] = candidateSet[index - 1].consensusAddr;
+      bytes32[] storage s = nodeIDsMap[operateAddr];
+      uint256 n = s.length;
+      bytes32[] memory m = new bytes32[](n);
+      for (uint256 j = 0; j < n; j++) {
+        m[j] = s[j];
+      }
+      nodeIDsList[i] = m;
+    }
   }
 
   /// Get list of validator candidates 

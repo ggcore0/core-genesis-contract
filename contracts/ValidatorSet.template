@@ -396,14 +396,19 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
     address[] memory consensusAddrs = new address[](validatorSize);
     bytes[] memory voteAddrs = new bytes[](validatorSize);
 
-    uint256 pushedCount;
-    address consensusAddress;
-    for (uint256 i; pushedCount < validatorSize && i < workingRankedValidatorLen; ++i) {
-      uint256 index = currentValidatorSetMap[workingRankedValidatorList[i]];
-      consensusAddress = currentValidatorSet[index-1].consensusAddress;
-      consensusAddrs[pushedCount] = consensusAddress;
-      voteAddrs[pushedCount] = exMap[consensusAddress].voteAddr;
-      ++pushedCount;
+    // randomly sample `validatorSize` validators from `workingRankedValidatorList` with equal probability.
+    for (uint256 i = 0; i < validatorSize; ++i) {
+      uint256 range = workingRankedValidatorLen - i;
+
+      // derive next random value from block number
+      uint256 rand = uint256(keccak256(abi.encodePacked(block.number / 200, i)));
+
+      uint256 j = i + (rand % range);
+      address consensusAddress = workingRankedValidatorList[j];
+      workingRankedValidatorList[j] = workingRankedValidatorList[i];
+      workingRankedValidatorList[i] = consensusAddress;
+      consensusAddrs[i] = consensusAddress;
+      voteAddrs[i] = exMap[consensusAddress].voteAddr;
     }
 
     return (consensusAddrs, voteAddrs);

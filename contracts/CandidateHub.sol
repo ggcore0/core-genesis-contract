@@ -228,8 +228,9 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
     // choose top ones to form the validator set of the new round
     (uint256[] memory scores) =
       IStakeHub(STAKE_HUB_ADDR).getHybridScore(candidates, roundTag);
-    uint256 sortedCount = getAlternateCount(maxAlternateCount, validatorCount, candidates.length);
-    address[] memory validatorList = getValidators(candidates, scores, validatorCount + sortedCount, sortedCount);
+    
+    uint256 totalRotationCount = maxAlternateCount + validatorCount > candidates.length ? candidates.length : maxAlternateCount + validatorCount;
+    address[] memory validatorList = getValidators(candidates, scores, totalRotationCount);
 
     // prepare arguments, and notify ValidatorSet contract
     address[] memory consensusAddrList = new address[](validatorList.length);
@@ -519,8 +520,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
   }
 
   /// Rank validator candidates on hybrid score using quicksort
-  function getValidators(address[] memory candidateList, uint256[] memory scoreList, uint256 count, uint256 sortedCount) internal pure returns (address[] memory validatorList){
-    require(count > sortedCount, "count should be greater than sortedCount");
+  function getValidators(address[] memory candidateList, uint256[] memory scoreList, uint256 count) internal pure returns (address[] memory validatorList){
     uint256 candidateSize = candidateList.length;
     if (candidateSize == 0) {
       return validatorList;
@@ -561,20 +561,6 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
         r = mid - 1;
       } else {
         break;
-      }
-    }
-
-    // select top sortedCount
-    for (uint256 i = count - 1; i >= count - sortedCount; i--) {
-      uint256 minIndex;
-      for (uint256 j = 1; j <= i; j++) {
-        if (scoreList[j] < scoreList[minIndex]) {
-            minIndex = j;
-        }
-      }
-      if (minIndex != i) {
-          (candidateList[i], candidateList[minIndex]) = (candidateList[minIndex], candidateList[i]);
-          (scoreList[i], scoreList[minIndex]) = (scoreList[minIndex], scoreList[i]);
       }
     }
 
@@ -703,12 +689,4 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
     return SatoshiPlusHelper.ROUND_INTERVAL;
   }
 
-  function getAlternateCount(uint256 _maxAlternateCount, uint256 _validatorCount, uint256 _candidateSize) internal pure returns (uint256) {
-    if (_candidateSize <= _validatorCount) {
-      _maxAlternateCount = 0;
-    } else if (_candidateSize < _validatorCount + _maxAlternateCount) {
-      _maxAlternateCount = _candidateSize - _validatorCount;
-    }
-    return _maxAlternateCount;
-  }
 }

@@ -39,6 +39,9 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
 
   uint256 public voteRewardPercent;
 
+  // Base value used for validator selection weight calculation.
+  uint256 public weightBase;
+
   uint256 public maintainSlashPercent;
 
   uint256 public validatorCount;
@@ -396,17 +399,40 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
     address[] memory consensusAddrs = new address[](validatorSize);
     bytes[] memory voteAddrs = new bytes[](validatorSize);
 
-    // randomly sample `validatorSize` validators from `workingRankedValidatorList` with equal probability.
+    uint256[] memory weightList = new uint256[](workingRankedValidatorLen);
+    uint256 weightSum = 0;
+    uint256 base = weightBase;
+    for (uint256 i = 0; i < workingRankedValidatorLen; ++i) {
+      uint256 commission = currentValidatorSet[currentValidatorSetMap[workingRankedValidatorList[i]]-1].commissionThousandths / 10;
+      uint256 weight = base <= commission ? 1 : base - commission;
+      weightList[i] = weight;
+      weightSum += weight;
+    }
+
+    // randomly sample `validatorSize` validators from `workingRankedValidatorList` with weighted probability.
+    uint256 entropy = block.number / 200;
     for (uint256 i = 0; i < validatorSize; ++i) {
-      uint256 range = workingRankedValidatorLen - i;
-
       // derive next random value from block number
-      uint256 rand = uint256(keccak256(abi.encodePacked(block.number / 200, i)));
+      uint256 rand = uint256(keccak256(abi.encodePacked(entropy, i))) % weightSum;
 
-      uint256 j = i + (rand % range);
+      uint256 accWeight = 0;
+      uint256 j = i;
+      for (; j < workingRankedValidatorLen; ++j) {
+        accWeight += weightList[j];
+        if (rand < accWeight) {
+          break;
+        }
+      }
+
       address consensusAddress = workingRankedValidatorList[j];
       workingRankedValidatorList[j] = workingRankedValidatorList[i];
       workingRankedValidatorList[i] = consensusAddress;
+
+      uint256 w = weightList[j];
+      weightList[j] = weightList[i];
+      weightList[i] = w;
+      weightSum -= w;
+
       consensusAddrs[i] = consensusAddress;
       voteAddrs[i] = exMap[consensusAddress].voteAddr;
     }
@@ -554,6 +580,12 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
         revert OutOfBounds(key, newVoteRewardPercent, 0, 100);
       }
       voteRewardPercent = newVoteRewardPercent;
+    } else if (Memory.compareStrings(key, "weightBase")) {
+      uint256 newWeightBase = BytesToTypes.bytesToUint256(32, value);
+      if (newWeightBase > 1e5) {
+        revert OutOfBounds(key, newWeightBase, 0, 1e5);
+      }
+      weightBase = newWeightBase;
     } else if (Memory.compareStrings(key, "maintainSlashPercent")) {
       uint256 newMaintainSlashPercent = BytesToTypes.bytesToUint256(32, value);
       if (newMaintainSlashPercent > 100) {

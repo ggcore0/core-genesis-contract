@@ -229,8 +229,7 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
     (uint256[] memory scores) =
       IStakeHub(STAKE_HUB_ADDR).getHybridScore(candidates, roundTag);
     
-    uint256 totalRotationCount = maxAlternateCount + validatorCount > candidates.length ? candidates.length : maxAlternateCount + validatorCount;
-    address[] memory validatorList = getValidators(candidates, scores, totalRotationCount);
+    address[] memory validatorList = getValidators(candidates, scores, maxAlternateCount + validatorCount);
 
     // prepare arguments, and notify ValidatorSet contract
     address[] memory consensusAddrList = new address[](validatorList.length);

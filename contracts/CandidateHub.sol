@@ -600,12 +600,8 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
       dues = newDues;
     } else if (Memory.compareStrings(key, "validatorCount")) {
       uint256 newValidatorCount = BytesToTypes.bytesToUint256(32, value);
-      if (newValidatorCount <= 5 || newValidatorCount >= 42) {
-        revert OutOfBounds(key, newValidatorCount, 6, 41);
-      }
-      // Check if the current maxAlternateCount would violate the constraint with the new validatorCount
-      if (maxAlternateCount > newValidatorCount / 3) {
-        revert OutOfBounds("maxAlternateCount", maxAlternateCount, 0, newValidatorCount / 3);
+      if (newValidatorCount <= 5 || maxAlternateCount + newValidatorCount > 41) {
+        revert OutOfBounds(key, newValidatorCount, 6, 41 - maxAlternateCount);
       }
       validatorCount = newValidatorCount;
     } else if (Memory.compareStrings(key, "maxCommissionChange")) {
@@ -616,8 +612,8 @@ contract CandidateHub is ICandidateHub, System, IParamSubscriber {
       maxCommissionChange = newMaxCommissionChange;
     } else if (Memory.compareStrings(key, "maxAlternateCount")) {
       uint256 newAlternateValidatorCount = BytesToTypes.bytesToUint256(32, value);
-      if (newAlternateValidatorCount > validatorCount / 3) {
-        revert OutOfBounds(key, newAlternateValidatorCount, 0, validatorCount / 3);
+      if (newAlternateValidatorCount + validatorCount > 41) {
+        revert OutOfBounds(key, newAlternateValidatorCount, 0, 41 - validatorCount);
       }
       maxAlternateCount = newAlternateValidatorCount;
     } else if (Memory.compareStrings(key, "maxNodeIDs")) {

@@ -210,6 +210,14 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     uint256 amount = stx.amount;
     require(amount != 0, "stake tx not found");
 
+    if (stx.stakeRound != roundTag) {
+      if (stx.transferFrom != address(0) && IStakeHub(STAKE_HUB_ADDR).getChangeRound(delegator) != roundTag) {
+        candidateMap[stx.transferFrom].undelegateAmount += amount;
+      } else {
+        candidateMap[stx.candidate].undelegateAmount += amount;
+      }
+    }
+
     IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, true);
     d.reward += stx.reward;
 

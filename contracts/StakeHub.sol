@@ -332,6 +332,13 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     return stakeWeightRound == 0 ? ICandidateHub(CANDIDATE_HUB_ADDR).getRoundTag() : stakeWeightRound;
   }
 
+  // Get change round
+  // @param delegator delegator address
+  // @return the change round
+  function getChangeRound(address delegator) external view override returns(uint256) {
+    return delegatorMap[delegator].changeRound;
+  }
+
   /// Calculate reward for delegator
   /// @param delegator delegator address
   /// @param setStakeWeight whether to set stake weight

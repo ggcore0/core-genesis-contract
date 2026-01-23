@@ -9,4 +9,5 @@ interface IStakeHub {
   function setNewRound(address[] calldata validatorList, uint256 roundTag) external;
   function onStakeChange(address delegator, bool setStakeWeight) external;
   function getStakeWeightRound() external view returns(uint256);
+  function getChangeRound(address delegator) external view returns(uint256);
 }

@@ -70,6 +70,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     uint256 channelReward;
     bytes32[] stakeIds;
     mapping(bytes32 => StakeTx) stakeTxMap;
+    bool isStakeWeight;
   }
 
   struct Reward {
@@ -185,13 +186,17 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// Delegate coin to a validator
   /// @param candidate The operator address of validator
   function delegateCoin(address candidate) external payable {
+    address delegator = msg.sender;
     if (!ICandidateHub(CANDIDATE_HUB_ADDR).canDelegate(candidate)) {
       revert InactiveCandidate(candidate);
     }
     require(msg.value >= requiredCoinDeposit, "delegate amount is too small");
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(msg.sender, true);
-    (uint256 realtimeAmount, bytes32 stakeId) = _delegateCoin(candidate, msg.sender, msg.value, false, true);
-    emit delegatedCoin(candidate, msg.sender, msg.value, realtimeAmount, stakeId);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, false);
+    (uint256 realtimeAmount, bytes32 stakeId) = _delegateCoin(candidate, delegator, msg.value, false, true);
+    if (!delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
+    }
+    emit delegatedCoin(candidate, delegator, msg.value, realtimeAmount, stakeId);
   }
 
   /// Undelegate coin from a validator
@@ -218,7 +223,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       }
     }
 
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, true);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, false);
     d.reward += stx.reward;
 
     candidateMap[stx.candidate].realtimeAmount -= amount;
@@ -239,6 +244,10 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     Address.sendValue(payable(msg.sender), amount);
 
     _onUndelegate(msg.sender, amount);
+
+    if (!delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
+    }
   }
 
   /// Transfer coin stake to a new validator
@@ -252,9 +261,12 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     if (sourceCandidate == targetCandidate) {
       revert SameCandidate(sourceCandidate);
     }
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(msg.sender, true);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(msg.sender, false);
     _undelegateCoin(sourceCandidate, msg.sender, amount, true);
     (uint256 newDeposit, bytes32 stakeId) = _delegateCoin(targetCandidate, msg.sender, amount, true, true);
+    if (!delegatorMap[msg.sender].isStakeWeight) {
+      _enableStakeWeight(msg.sender);
+    }
 
     emit transferredCoin(sourceCandidate, targetCandidate, msg.sender, amount, newDeposit, stakeId);
   }
@@ -276,7 +288,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       revert SameCandidate(targetCandidate);
     }
 
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, true);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, false);
 
     emit transferredCoin(stx.candidate, targetCandidate, msg.sender, stx.amount, 0, stakeId);
 
@@ -288,6 +300,10 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     stx.candidate = targetCandidate;
     candidateMap[targetCandidate].realtimeAmount += amount;
     stx.skipReward = true;
+
+    if (!delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
+    }
   }
 
   /// Claim reward for delegator
@@ -375,9 +391,8 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       delete rewardMap[delegator];
     }
 
-    if (setStakeWeight && size != 0) {
+    if (setStakeWeight && !delegatorMap[delegator].isStakeWeight) {
       _enableStakeWeight(delegator);
-      emit stakeWeightEnable(delegator);
     }
   }
 
@@ -422,6 +437,10 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       d.channelReward = 0;
       emit claimedCoinReward(delegator, txIds, reward);
     }
+
+     if (!delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
+    }
   }
 
   /// for backward compatibility - allow users to unstake through PledgeAgent
@@ -435,11 +454,15 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     }
     require(msg.value >= requiredCoinDeposit, "delegate amount is too small");
     bool setStakeWeight = channelId != 0;
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, setStakeWeight);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, false);
     (uint256 realtimeAmount, bytes32 stakeId) = _delegateCoin(candidate, delegator, msg.value, false, setStakeWeight);
     emit delegatedCoin(candidate, delegator, msg.value, realtimeAmount, stakeId);
     if (channelId != 0) {
       delegatorMap[delegator].channelAmount += msg.value;
+    }
+
+    if (setStakeWeight && !delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
     }
   }
 
@@ -506,6 +529,9 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     }
 
     delete delegatorMap[delegator].candidates;
+    delegatorMap[delegator].isStakeWeight = true;
+
+    emit stakeWeightEnable(delegator);
   }
 
   /// This method merge the list of continuousRewardEndRounds.
@@ -542,7 +568,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     a.realtimeAmount += amount;
 
     if (!setStakeWeight) {
-      require(d.stakeIds.length == 0, 'Already set stake weight');
+      require(!delegatorMap[delegator].isStakeWeight, 'Already set stake weight');
       CoinDelegator storage cd = a.cDelegatorMap[delegator];
       uint256 changeRound = cd.changeRound;
       if (changeRound == 0) {
@@ -579,7 +605,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @param delegator the delegator address
   /// @param amount the amount of CORE to unstake
   function _undelegate(address candidate, address delegator, uint256 amount, bool setStakeWeight) internal returns(uint256) {
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, setStakeWeight);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, false);
     if (amount == 0) {
       amount = candidateMap[candidate].cDelegatorMap[delegator].realtimeAmount;
     }
@@ -589,6 +615,10 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     emit undelegatedCoin(candidate, delegator, amount, bytes32(0));
 
     _onUndelegate(delegator, amount);
+
+    if (setStakeWeight && !delegatorMap[delegator].isStakeWeight) {
+      _enableStakeWeight(delegator);
+    }
 
     Address.sendValue(payable(msg.sender), amount);
 
@@ -945,5 +975,9 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
 
   function getStakeTx(address delegator, bytes32 stakeTxId) external view returns (StakeTx memory) {
     return delegatorMap[delegator].stakeTxMap[stakeTxId];
+  }
+
+  function getStakeWeight(address delegator) external view returns (bool) {
+    return delegatorMap[delegator].isStakeWeight || delegatorMap[delegator].candidates.length == 0;
   }
 }

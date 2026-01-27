@@ -123,6 +123,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
   event btcExpired(bytes32 indexed txid, address indexed delegator);
   event storedRewardBtcTx(bytes32 indexed txid, uint256 reward, bool expired, uint256 lockLengthRate, uint256 dualStakingRate);
   event claimedBtcReward(address indexed delegator, bytes32[] txIds, uint256 reward);
+  event stakeRoundChange(bytes32 indexed txid, uint256 newStakeRound);
 
   /// The validator candidate is inactive, it is expected to be active
   /// @param candidate Address of the validator candidate
@@ -332,6 +333,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
         DepositReceipt storage dr = receiptMap[txid];
         reward += dr.reward;
         dr.stakeRound = roundTag - 1;
+        emit stakeRoundChange(txid, roundTag - 1);
         if (dr.expired) {
           emit btcExpired(txid, receiptMap[txid].delegator);
           delete receiptMap[txid];

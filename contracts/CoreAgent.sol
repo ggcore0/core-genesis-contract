@@ -103,6 +103,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   event claimedCoinReward(address indexed delegator, bytes32[] txids, uint256 amount);
   event storedReward(address indexed candidate, address indexed delegator, bytes32 indexed txid, uint256 reward);
   event stakeWeightEnable(address indexed delegator);
+  event stakeRoundChange(bytes32 indexed txid, uint256 newStakeRound);
 
   modifier onlyInternalCall() {
     require(msg.sender == PLEDGE_AGENT_ADDR || msg.sender == CHANNEL_ADDR, "the sender must be PledgeAgent or Channel contracts");
@@ -428,6 +429,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         }
         if (stx.stakeRound != roundTag) {
           stx.stakeRound = roundTag - 1;
+          emit stakeRoundChange(txid, roundTag - 1);
         }
       }
     }

@@ -718,11 +718,11 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     }
   }
 
-  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal pure returns (uint256 reward) {
+  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal virtual view returns (uint256 reward) {
     reward = (tailReward - headReward) * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
   }
 
-  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal pure returns (uint256 reward) {
+  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal virtual view returns (uint256 reward) {
     reward = amount * ((maxStakeWeightReward - headReward) * SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND + (tailReward - maxStakeWeightReward) * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
   }
 }

@@ -810,7 +810,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @param transferRound the transfer round
   /// @return reward the amount of rewards collected
   function _calculateTransferredReward(StakeTx storage stakeTx, uint256 transferRound) internal view returns (uint256 reward) {
-    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.transferFrom, stakeTx.stakeRound, false, transferRound - 1, transferRound);
+    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.transferFrom, stakeTx.stakeRound, false, transferRound, transferRound);
   }
 
   function _calculateStakeWeightReward(uint256 amount, address candidate, uint256 firstRound, bool skipReward, uint256 changeRound, uint256 lastRound) internal view returns (uint256 reward){
@@ -831,7 +831,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       }
       if (changeRound - 1 > firstRound) {
         duration = changeRound - 1 - firstRound;
-        tailReward = _getRoundAccruedReward(candidate, changeRound);
+        tailReward = _getRoundAccruedReward(candidate, changeRound - 1);
         uint256 calculatedReward;
         if (duration <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
           calculatedReward = _shortStakeFormula(headReward, tailReward, amount, duration);
@@ -843,11 +843,11 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     }
   }
 
-  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal pure returns (uint256 reward) {
+  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal virtual view returns (uint256 reward) {
     reward = (tailReward - headReward) * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
   }
 
-  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal pure returns (uint256 reward) {
+  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal virtual view returns (uint256 reward) {
     reward = amount * ((maxStakeWeightReward - headReward) * SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND + (tailReward - maxStakeWeightReward) * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
   }
 

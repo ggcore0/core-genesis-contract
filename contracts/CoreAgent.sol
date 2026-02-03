@@ -400,8 +400,9 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// Claim reward for delegator
   /// @param delegator the delegator address
   /// @param txIds the given txid list to claim. If the list is empty, it means all.
+  /// @param setStakeWeight whether the delegator set the stake weight or not
   /// @return reward Amount claimed
-  function claimReward(address delegator, bytes32[] memory txIds) override external onlyStakeHub returns (uint256 reward) {
+  function claimReward(bool setStakeWeight, address delegator, bytes32[] memory txIds) override external onlyStakeHub returns (uint256 reward) {
     Delegator storage d = delegatorMap[delegator];
 
     // claim reward and reset delegator reward
@@ -440,7 +441,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       emit claimedCoinReward(delegator, txIds, reward);
     }
 
-     if (!delegatorMap[delegator].isStakeWeight) {
+    if (setStakeWeight && !delegatorMap[delegator].isStakeWeight) {
       _enableStakeWeight(delegator);
     }
   }

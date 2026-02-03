@@ -33,6 +33,7 @@ interface IAgent {
   /// Claim reward for delegator
   /// @param delegator the delegator address
   /// @param txIds the given txid list to claim. If the list is empty, it means all.
+  /// @param setStakeWeight whether the delegator set the stake weight or not
   /// @return reward Amount claimed
-  function claimReward(address delegator, bytes32[] memory txIds) external returns (uint256 reward);
+  function claimReward(bool setStakeWeight, address delegator, bytes32[] memory txIds) external returns (uint256 reward);
 }

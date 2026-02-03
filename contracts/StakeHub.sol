@@ -280,13 +280,13 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     _calculateReward(delegator, setStakeWeight);
 
     if (FLAG_STAKE_CORE == (flag & FLAG_STAKE_CORE)) {
-      rewards[0] = IAgent(assets[0].agent).claimReward(delegator, txIds);
+      rewards[0] = IAgent(assets[0].agent).claimReward(setStakeWeight, delegator, txIds);
     }
     if (FLAG_STAKE_HASHPOWER == (flag & FLAG_STAKE_HASHPOWER)) {
-      rewards[1] = IAgent(assets[1].agent).claimReward(delegator, txIds);
+      rewards[1] = IAgent(assets[1].agent).claimReward(setStakeWeight,delegator, txIds);
     }
     if (FLAG_STAKE_BTC == (flag & FLAG_STAKE_BTC)) {
-      rewards[2] = IAgent(assets[2].agent).claimReward(delegator, txIds);
+      rewards[2] = IAgent(assets[2].agent).claimReward(setStakeWeight, delegator, txIds);
     }
 
     Delegator storage d = delegatorMap[delegator];

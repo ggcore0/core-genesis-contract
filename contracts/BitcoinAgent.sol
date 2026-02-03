@@ -101,7 +101,7 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
   /// @param delegator the delegator address
   /// @param btcIds the given txid list to claim. If the list is empty, it means all.
   /// @return reward Amount claimed
-  function claimReward(address delegator, bytes32[] memory btcIds) external override onlyStakeHub returns (uint256 reward) {
+  function claimReward(bool /*setStakeWeight*/, address delegator, bytes32[] memory btcIds) external override onlyStakeHub returns (uint256 reward) {
     return IBitcoinStake(BTC_STAKE_ADDR).claimReward(delegator, btcIds);
   }
 

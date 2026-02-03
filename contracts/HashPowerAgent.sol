@@ -59,7 +59,7 @@ contract HashPowerAgent is IAgent, System, IParamSubscriber {
       address[] memory miners = ILightClient(LIGHT_CLIENT_ADDR).getRoundMiners(round-7, validators[i]);
       // distribute rewards to every miner
       if (miners.length != 0) {
-        avgReward = rewardList[i] / miners.length * SatoshiPlusHelper.DENOMINATOR / stakeWeight;
+        avgReward = rewardList[i] * SatoshiPlusHelper.DENOMINATOR / miners.length / stakeWeight;
         if (totalRoundAmount != 0) {
           avgReward = avgReward * stakedRoundAmount / totalRoundAmount;
         }

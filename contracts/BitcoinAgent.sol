@@ -241,7 +241,7 @@ contract BitcoinAgent is IBtcAgent, System, IParamSubscriber {
         lockDuration = RLPDecode.toUint(itemArray[0]);
         // limit lockDuration 4000 rounds.
         if (lockDuration > 4000) {
-          revert OutOfBounds('lockDuration', percentage, 0, 4000);
+          revert OutOfBounds('lockDuration', lockDuration, 0, 4000);
         }
         percentage = RLPDecode.toUint(itemArray[1]);
         if (percentage == 0 || percentage > SatoshiPlusHelper.DENOMINATOR) {

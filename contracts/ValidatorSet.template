@@ -39,9 +39,6 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
 
   uint256 public voteRewardPercent;
 
-  // Base value used for validator selection weight calculation.
-  uint256 public weightBase;
-
   uint256 public maintainSlashPercent;
 
   uint256 public validatorCount;
@@ -54,6 +51,9 @@ contract ValidatorSet is IValidatorSet, System, IParamSubscriber {
   // key is the `consensusAddress` of `Validator`,
   // value is the extension information of Validator.
   mapping(address => ValidatorEx) public exMap;
+
+  // Base value used for validator selection weight calculation.
+  uint256 public weightBase;
 
   struct Validator {
     address operateAddress;

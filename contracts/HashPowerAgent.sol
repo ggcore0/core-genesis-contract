@@ -22,7 +22,7 @@ contract HashPowerAgent is IAgent, System, IParamSubscriber {
 
   /*********************** events **************************/
   event claimedHashReward(address indexed delegator, uint256 amount);
-  event validatorAvgReward(address indexed validator, uint256 avgReward);
+  event validatorAvgReward(address indexed validator, address indexed delegator, uint256 avgReward);
 
   struct Reward {
     uint256 reward;
@@ -80,8 +80,9 @@ contract HashPowerAgent is IAgent, System, IParamSubscriber {
           actureReward = avgReward * r.stakeWeight / SatoshiPlusHelper.DENOMINATOR;
           distributedReward += actureReward;
           rewardMap[miners[j]].reward += actureReward;
+
+          emit validatorAvgReward(validators[i], miners[j],actureReward);
         }
-        emit validatorAvgReward(validators[i], actureReward);
       }
     }
     destoryAmount = totalReward - distributedReward;

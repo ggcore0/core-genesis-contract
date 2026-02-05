@@ -180,7 +180,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
       uint32 channelId;
       (btcAmount, outputIndex, channelId, delegator, candidate) = _parseVout(voutView, script);
       require(IRelayerHub(RELAYER_HUB_ADDR).isRelayer(msg.sender) || msg.sender == delegator, "only delegator or relayer can submit the BTC transaction");
-      IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator, true);
+      IStakeHub(STAKE_HUB_ADDR).onStakeChange(delegator);
       bt.lockTime = lockTime;
       bt.blockTimestamp = blockTimestamp;
       bt.amount = btcAmount;
@@ -421,7 +421,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     if (!ICandidateHub(CANDIDATE_HUB_ADDR).canDelegate(targetCandidate)) {
       revert InactiveCandidate(targetCandidate);
     }
-    IStakeHub(STAKE_HUB_ADDR).onStakeChange(dr.delegator, true);
+    IStakeHub(STAKE_HUB_ADDR).onStakeChange(dr.delegator);
 
     Candidate storage c = candidateMap[candidate];
     c.realtimeAmount -= amount;

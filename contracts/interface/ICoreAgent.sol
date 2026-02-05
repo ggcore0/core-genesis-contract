@@ -7,10 +7,9 @@ interface ICoreAgent is IAgent {
   /// Claim reward for delegator
   /// @param delegator the delegator address
   /// @param changeRound the change round
-  /// @param setStakeWeight whether the delegator set the stake weight or not
   /// @return stakedAmount1 the staked amount in the first round
   /// @return stakedAmount2 the real amount in the last round
-  function liquidationReward(bool setStakeWeight, address delegator, uint256 changeRound) external returns (uint256 stakedAmount1, uint256 stakedAmount2);
+  function liquidationReward(address delegator, uint256 changeRound) external returns (uint256 stakedAmount1, uint256 stakedAmount2);
 
   /// for backward compatibility - allow users to unstake through PledgeAgent
   /// support channel from v1.0.20

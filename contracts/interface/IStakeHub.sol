@@ -7,7 +7,7 @@ interface IStakeHub {
     uint256 roundTag) payable external;
   function getHybridScore(address[] calldata candidates, uint256 roundTag) external returns(uint256[] memory);
   function setNewRound(address[] calldata validatorList, uint256 roundTag) external;
-  function onStakeChange(address delegator, bool setStakeWeight) external;
+  function onStakeChange(address delegator) external;
   function getStakeWeightRound() external view returns(uint256);
   function getChangeRound(address delegator) external view returns(uint256);
 }

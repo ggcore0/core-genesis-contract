@@ -277,7 +277,7 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
 
   function _claimReward(address delegator, uint256 flag, bytes32[] memory txIds, bool setStakeWeight) internal returns (uint256[] memory rewards, uint256 totalReward) {
     rewards = new uint256[](3);
-    _calculateReward(delegator, setStakeWeight);
+    _calculateReward(delegator);
 
     if (FLAG_STAKE_CORE == (flag & FLAG_STAKE_CORE)) {
       rewards[0] = IAgent(assets[0].agent).claimReward(setStakeWeight, delegator, txIds);
@@ -316,14 +316,14 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
 
   /// This method is invoked whenever user CORE/BTC stake changes.
   /// @param delegator delegator address
-  function onStakeChange(address delegator, bool setStakeWeight) override external {
-    _calculateReward(delegator, setStakeWeight);
+  function onStakeChange(address delegator) override external {
+    _calculateReward(delegator);
   }
 
   // Calculate reward for delegator.
   /// @param delegator delegator address
   function calculateReward(address delegator) public {
-    _calculateReward(delegator, false);
+    _calculateReward(delegator);
   }
 
   // Get the round of stake weight
@@ -341,8 +341,7 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
 
   /// Calculate reward for delegator
   /// @param delegator delegator address
-  /// @param setStakeWeight whether to set stake weight
-  function _calculateReward(address delegator, bool setStakeWeight) internal {
+  function _calculateReward(address delegator) internal {
     Delegator storage d = delegatorMap[delegator];
     uint256 currentRound = ICandidateHub(CANDIDATE_HUB_ADDR).getRoundTag();
     if (d.changeRound == currentRound) {
@@ -353,7 +352,7 @@ contract StakeHub is IStakeHub, System, IParamSubscriber {
     int256 totalFloatReward;
     uint256 stakedCoreAmount1;
     uint256 stakedCoreAmount2;
-    (stakedCoreAmount1, stakedCoreAmount2) = ICoreAgent(assets[0].agent).liquidationReward(setStakeWeight, delegator, d.changeRound);
+    (stakedCoreAmount1, stakedCoreAmount2) = ICoreAgent(assets[0].agent).liquidationReward(delegator, d.changeRound);
 
     if (stakedCoreAmount1 != stakedCoreAmount2) {
       totalFloatReward = IBtcAgent(assets[2].agent).liquidationReward(delegator, stakedCoreAmount1, d.changeRound);

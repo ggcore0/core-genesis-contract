@@ -217,7 +217,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     require(amount != 0, "stake tx not found");
 
     if (stx.stakeRound != roundTag) {
-      if (stx.transferFrom != address(0) && IStakeHub(STAKE_HUB_ADDR).getChangeRound(delegator) != roundTag) {
+      if (stx.transferFrom != address(0) && IStakeHub(STAKE_HUB_ADDR).getChangeRound(delegator) == roundTag) {
         candidateMap[stx.transferFrom].undelegateAmount += amount;
       } else {
         candidateMap[stx.candidate].undelegateAmount += amount;
@@ -245,10 +245,6 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     Address.sendValue(payable(msg.sender), amount);
 
     _onUndelegate(msg.sender, amount);
-
-    if (!delegatorMap[delegator].isStakeWeight) {
-      _enableStakeWeight(delegator);
-    }
   }
 
   /// Transfer coin stake to a new validator
@@ -301,10 +297,6 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     stx.candidate = targetCandidate;
     candidateMap[targetCandidate].realtimeAmount += amount;
     stx.skipReward = true;
-
-    if (!delegatorMap[delegator].isStakeWeight) {
-      _enableStakeWeight(delegator);
-    }
   }
 
   /// Claim reward for delegator
@@ -326,7 +318,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       StakeTx storage stakeTx = d.stakeTxMap[d.stakeIds[i - 1]];
       candidate = stakeTx.candidate;
       s2 = stakeTx.amount;
-      s1 = (stakeTx.stakeRound == changeRound) ? 0 : s2;
+      s1 = (stakeTx.stakeRound == roundTag) ? 0 : s2;
       reward = _calculateStakeTxReward(stakeTx, changeRound);
       if (reward != 0) {
         emit storedReward(candidate, delegator, d.stakeIds[i - 1], reward);

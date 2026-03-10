@@ -717,7 +717,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         StakeTx storage stakeTx = d.stakeTxMap[d.stakeIds[i]];
         candidates[i] = stakeTx.candidate;
         s2 = stakeTx.amount;
-        s1 = (stakeTx.stakeRound == changeRound) ? 0 : s2;
+        s1 = (stakeTx.stakeRound == roundTag) ? 0 : s2;
         rewards[i] = _calculateStakeTxReward(stakeTx, changeRound);
         stakedAmount1 += s1;
         stakedAmount2 += s2;
@@ -776,7 +776,12 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     if (lastRound >= stakeWeightRound) {
       uint256 stakeWeightRewardRound = lastRound - stakeWeightRound + 1;
       if (totalRewardRound > stakeWeightRewardRound) {
-        extraReward = (reward * stakeWeightRewardRound / totalRewardRound) * (stakeWeightRewardRound > SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX ? SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX : stakeWeightRewardRound * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
+        if (stakeWeightRewardRound <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
+          extraReward = (reward * stakeWeightRewardRound / totalRewardRound) * ((stakeWeightRewardRound - 1) * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
+        } else {
+          extraReward = (reward * SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX / totalRewardRound) * (SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
+          extraReward += (reward * (stakeWeightRewardRound - SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) / totalRewardRound) * SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / SatoshiPlusHelper.DENOMINATOR;
+        }
       }
     }
   }

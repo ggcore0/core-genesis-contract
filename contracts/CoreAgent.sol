@@ -317,8 +317,14 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
     for (uint256 i = size; i != 0; --i) {
       StakeTx storage stakeTx = d.stakeTxMap[d.stakeIds[i - 1]];
       candidate = stakeTx.candidate;
-      s2 = stakeTx.amount;
-      s1 = (stakeTx.stakeRound == roundTag) ? 0 : s2;
+      if (stakeTx.stakeRound < (roundTag - 1)) {
+        s2 = stakeTx.amount;
+        s1 = (stakeTx.stakeRound == roundTag) ? 0 : s2;
+      } else {
+        s2 = 0;
+        s1 = 0;
+      }
+
       reward = _calculateStakeTxReward(stakeTx, changeRound);
       if (reward != 0) {
         emit storedReward(candidate, delegator, d.stakeIds[i - 1], reward);

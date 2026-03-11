@@ -779,7 +779,7 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         if (stakeWeightRewardRound <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
           extraReward = (reward * stakeWeightRewardRound / totalRewardRound) * ((stakeWeightRewardRound - 1) * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
         } else {
-          extraReward = (reward * SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX / totalRewardRound) * (SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
+          extraReward = (reward * SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX / totalRewardRound) * ((SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX - 1) * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR;
           extraReward += (reward * (stakeWeightRewardRound - SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) / totalRewardRound) * SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / SatoshiPlusHelper.DENOMINATOR;
         }
       }

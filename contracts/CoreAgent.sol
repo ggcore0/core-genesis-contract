@@ -729,8 +729,21 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
       for (uint256 i = 0; i < stakeTxSize; ++i) {
         StakeTx storage stakeTx = d.stakeTxMap[d.stakeIds[i]];
         candidates[i] = stakeTx.candidate;
-        s2 = stakeTx.amount;
-        s1 = (stakeTx.stakeRound == roundTag) ? 0 : s2;
+
+        if (stakeTx.stakeRound < (roundTag - 1)) {
+          s2 = stakeTx.amount;
+        } else {
+          s2 = 0;
+        }
+
+        if (stakeTx.stakeRound < (changeRound - 1)) {
+          s1 = stakeTx.amount;
+        } else if (stakeTx.stakeRound == (changeRound - 1) && stakeTx.stakeRound < (roundTag - 1)) {
+          s1 = stakeTx.amount;
+        } else {
+          s1 = 0;
+        }
+
         rewards[i] = _calculateStakeTxReward(stakeTx, changeRound);
         stakedAmount1 += s1;
         stakedAmount2 += s2;

@@ -691,7 +691,7 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     uint256 lastRound = settleRound;
     if (changeRound < lastRound) {
       address candidate = dr.candidate;
-      uint256 firstRound = dr.stakeRound == 0 ? IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound() : dr.stakeRound;
+      uint256 firstRound = dr.stakeRound == 0 ? changeRound < IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound()  ? changeRound : IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound() : dr.stakeRound;
 
       uint256 headReward = _getRoundAccruedReward(candidate, firstRound);
       uint256 tailReward = _getRoundAccruedReward(candidate, lastRound);

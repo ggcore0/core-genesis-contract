@@ -817,7 +817,8 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @return reward the amount of rewards collected
   function _calculateStakeTxReward(StakeTx storage stakeTx, uint256 changeRound) internal view returns (uint256 reward) {
     uint256 lastRound = roundTag - 1;
-    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.candidate, stakeTx.stakeRound, stakeTx.skipReward, changeRound, lastRound);
+    bool inAdvance = stakeTx.stakeRound < IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound();
+    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.candidate, stakeTx.stakeRound, stakeTx.skipReward, changeRound, lastRound, inAdvance);
   }
 
   /// collect reward from a transfer record
@@ -825,20 +826,21 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
   /// @param transferRound the transfer round
   /// @return reward the amount of rewards collected
   function _calculateTransferredReward(StakeTx storage stakeTx, uint256 transferRound) internal view returns (uint256 reward) {
-    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.transferFrom, stakeTx.stakeRound, false, transferRound, transferRound);
+    bool inAdvance = stakeTx.stakeRound < IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound();
+    return _calculateStakeWeightReward(stakeTx.amount, stakeTx.transferFrom, stakeTx.stakeRound, false, transferRound, transferRound, inAdvance);
   }
 
-  function _calculateStakeWeightReward(uint256 amount, address candidate, uint256 firstRound, bool skipReward, uint256 changeRound, uint256 lastRound) internal view returns (uint256 reward){
+  function _calculateStakeWeightReward(uint256 amount, address candidate, uint256 firstRound, bool skipReward, uint256 changeRound, uint256 lastRound, bool inAdvance) internal view returns (uint256 reward){
     if (changeRound <= lastRound) {
       uint256 headReward = _getRoundAccruedReward(candidate, firstRound);
       uint256 tailReward = _getRoundAccruedReward(candidate, lastRound);
       uint256 swMaxReward;
       uint256 duration = lastRound - firstRound;
       if (duration <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
-        reward = _shortStakeFormula(headReward, tailReward, amount, duration);
+        reward = _shortStakeFormula(tailReward - headReward, amount, duration, inAdvance);
       } else {
         swMaxReward = _getRoundAccruedReward(candidate, firstRound + SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX);
-        reward = _longStakeFormula(headReward, swMaxReward, tailReward, amount);
+        reward = _longStakeFormula(swMaxReward - headReward, tailReward - swMaxReward, amount, inAdvance);
       }
 
       if (skipReward) {
@@ -849,21 +851,25 @@ contract CoreAgent is ICoreAgent, System, IParamSubscriber {
         tailReward = _getRoundAccruedReward(candidate, changeRound - 1);
         uint256 calculatedReward;
         if (duration <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
-          calculatedReward = _shortStakeFormula(headReward, tailReward, amount, duration);
+          calculatedReward = _shortStakeFormula(tailReward - headReward, amount, duration, inAdvance);
         } else {
-          calculatedReward = _longStakeFormula(headReward, swMaxReward, tailReward, amount);
+          calculatedReward = _longStakeFormula(swMaxReward - headReward, tailReward - swMaxReward, amount, inAdvance);
         }
         reward -= calculatedReward;
       }
     }
   }
 
-  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal virtual view returns (uint256 reward) {
-    reward = (tailReward - headReward) * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
+  function _shortStakeFormula(uint256 reward, uint256 amount, uint256 count, bool inAdvance) internal virtual view returns (uint256) {
+  if (inAdvance && count > 0) {
+      count--;
+    }
+    return reward * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
   }
 
-  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal virtual view returns (uint256 reward) {
-    reward = amount * ((maxStakeWeightReward - headReward) * SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND + (tailReward - maxStakeWeightReward) * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
+  function _longStakeFormula(uint256 beforeSwMaxReward, uint256 afterwMaxReward, uint256 amount, bool inAdvance) internal virtual view returns (uint256) {
+    uint256 avgStakeWeightUpperBound = inAdvance ? SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND_IN_ADVANCE : SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND;
+    return amount * (beforeSwMaxReward * avgStakeWeightUpperBound + afterwMaxReward * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.CORE_STAKE_DECIMAL;
   }
 
   /// remove delegate record of a candidate/delegator pair

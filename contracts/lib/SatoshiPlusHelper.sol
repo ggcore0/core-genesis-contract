@@ -24,5 +24,6 @@ library SatoshiPlusHelper {
   uint256 public constant STAKE_WEIGHT_PER_ROUND = 10;
   uint256 public constant STAKE_WEIGHT_UPPER_BOUND = 12000;
   uint256 public constant AVG_STAKE_WEIGHT_UPPER_BOUND = 11000;
+  uint256 public constant AVG_STAKE_WEIGHT_UPPER_BOUND_IN_ADVANCE = 10995;
   uint256 public constant STAKE_WEIGHT_ROUND_MAX = 200;
 }

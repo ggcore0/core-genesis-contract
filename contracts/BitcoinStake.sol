@@ -692,16 +692,17 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
     if (changeRound < lastRound) {
       address candidate = dr.candidate;
       uint256 firstRound = dr.stakeRound == 0 ? changeRound < IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound()  ? changeRound : IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound() : dr.stakeRound;
+      bool inAdvance = firstRound < IStakeHub(STAKE_HUB_ADDR).getStakeWeightRound();
 
       uint256 headReward = _getRoundAccruedReward(candidate, firstRound);
       uint256 tailReward = _getRoundAccruedReward(candidate, lastRound);
       uint256 swMaxReward;
       uint256 duration = lastRound - firstRound;
       if (duration <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
-        reward = _shortStakeFormula(headReward, tailReward, amount, duration);
+        reward = _shortStakeFormula(tailReward - headReward, amount, duration, inAdvance);
       } else {
         swMaxReward = _getRoundAccruedReward(candidate, firstRound + SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX);
-        reward = _longStakeFormula(headReward, swMaxReward, tailReward, amount);
+        reward = _longStakeFormula(swMaxReward - headReward, tailReward - swMaxReward, amount, inAdvance);
       }
 
       if (changeRound > firstRound) {
@@ -709,20 +710,24 @@ contract BitcoinStake is IBitcoinStake, System, IParamSubscriber, ReentrancyGuar
         tailReward = _getRoundAccruedReward(candidate, changeRound);
         uint256 calculatedReward;
         if (duration <= SatoshiPlusHelper.STAKE_WEIGHT_ROUND_MAX) {
-          calculatedReward = _shortStakeFormula(headReward, tailReward, amount, duration);
+          calculatedReward = _shortStakeFormula(tailReward - headReward, amount, duration, inAdvance);
         } else {
-          calculatedReward = _longStakeFormula(headReward, swMaxReward, tailReward, amount);
+          calculatedReward = _longStakeFormula(swMaxReward - headReward, tailReward - swMaxReward, amount, inAdvance);
         }
         reward -= calculatedReward;
       }
     }
   }
 
-  function _shortStakeFormula(uint256 headReward, uint256 tailReward, uint256 amount, uint256 count) internal virtual view returns (uint256 reward) {
-    reward = (tailReward - headReward) * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
+  function _shortStakeFormula(uint256 reward, uint256 amount, uint256 count, bool inAdvance) internal virtual view returns (uint256) {
+    if (inAdvance && count > 0) {
+      count--;
+    }
+    return reward * amount * (SatoshiPlusHelper.DENOMINATOR + count * SatoshiPlusHelper.STAKE_WEIGHT_PER_ROUND / 2) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
   }
 
-  function _longStakeFormula(uint256 headReward, uint256 maxStakeWeightReward, uint256 tailReward, uint256 amount) internal virtual view returns (uint256 reward) {
-    reward = amount * ((maxStakeWeightReward - headReward) * SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND + (tailReward - maxStakeWeightReward) * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
+  function _longStakeFormula(uint256 beforeSwMaxReward, uint256 afterwMaxReward, uint256 amount, bool inAdvance) internal virtual view returns (uint256) {
+    uint256 avgStakeWeightUpperBound = inAdvance ? SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND_IN_ADVANCE : SatoshiPlusHelper.AVG_STAKE_WEIGHT_UPPER_BOUND;
+    return amount * (beforeSwMaxReward * avgStakeWeightUpperBound + afterwMaxReward * SatoshiPlusHelper.STAKE_WEIGHT_UPPER_BOUND) / SatoshiPlusHelper.DENOMINATOR / SatoshiPlusHelper.BTC_DECIMAL;
   }
 }

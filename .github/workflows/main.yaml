@@ -54,9 +54,11 @@ jobs:
           sudo echo -e "\n[legacy_sect]\nactivate = 1" >> /usr/lib/ssl/openssl.cnf
       
       - name: Install solc
-        run: python -c "from solcx import install_solc; install_solc('0.8.4')"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ~/.solcx
+          curl -fsSL -o ~/.solcx/solc-v0.8.4 https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.4+commit.c7e474f2
+          chmod +x ~/.solcx/solc-v0.8.4
+          ~/.solcx/solc-v0.8.4 --version
 
       - name: Run tests
         env:
